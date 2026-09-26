@@ -25,7 +25,12 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
 - **Postgres:** `stations` and `station_snapshots` tables, with RLS set to public read and no public write
 - **Edge Function** [`ingest-gbfs`](supabase/functions/ingest-gbfs): fetches the GBFS feeds and upserts stations and snapshots. Only the project's secret key can call it.
 - **pg_cron + pg_net:** call the function every 5 minutes. The project URL and key come from Supabase Vault.
-- **SQL function** `station_profile(station_id, weekday, time)`: average bikes, plus % of time empty or full *(planned)*
+- **SQL function** [`station_profile(station_id, weekday, time)`](supabase/migrations/20260926182210_add_station_profile.sql): for that weekday and 15-minute local-time slot, returns the average bikes and docks, % of time empty or full, and how many past days the numbers are based on. Anyone can call it through the API; it's covered by [pgTAP tests](supabase/tests/station_profile.test.sql).
+
+  ```bash
+  curl -X POST "$SUPABASE_URL/rest/v1/rpc/station_profile" -H "apikey: $PUBLISHABLE_KEY" \
+    -H "Content-Type: application/json" -d '{"p_station_id": "1", "p_weekday": 1, "p_time": "08:10"}'
+  ```
 - **Front end:** one static HTML page on GitHub Pages *(planned)*
 
 ## Install in your own Supabase project
@@ -53,6 +58,12 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
    select * from cron.job_run_details order by start_time desc limit 5;
    select observed_at, count(*) from station_snapshots group by 1 order by 1 desc limit 5;
    ```
+
+## Ideas for v2
+
+- **Read the time zone from the feed.** `station_profile` defaults to `Europe/Paris`, so other cities have to pass
+  `p_timezone`. GBFS `system_information` publishes the network's `timezone`. Ingestion could store it, and the
+  profile would then be correct everywhere without any configuration.
 
 ## Friction log
 

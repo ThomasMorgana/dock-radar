@@ -9,6 +9,10 @@ build one. It works with any network that publishes a [GBFS](https://gbfs.org) *
   `ingest-gbfs` (every 5 minutes) and `clean-cron-history` (daily). Also an optional static front end in `docs/`.
 - **Data access:** the tables are publicly readable through RLS and writable only by the Edge Function.
   Don't install it if the user wants the data private.
+- **Optional email alerts:** table `alert_subscriptions` (private: RLS on, no grants to `anon`/`authenticated`),
+  SQL function `due_alerts()`, Edge Functions `alert-subscribe` and `send-alerts`, pg_cron jobs `send-alerts`
+  (hourly) and `expire-alert-subscriptions` (daily). They need Resend secrets `RESEND_API_KEY`, `ALERT_FROM` and `SITE_URL`.
+  The user creates the Resend key and runs `supabase secrets set` themselves. Without them, `send-alerts` returns 500 every hour.
 - **Licence:** MIT. Credit the user's data provider in the front end.
 
 ## Before you start, check

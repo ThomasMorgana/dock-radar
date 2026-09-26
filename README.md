@@ -32,6 +32,12 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
     -H "Content-Type: application/json" -d '{"p_station_id": "1", "p_weekday": 1, "p_time": "08:10"}'
   ```
 - **Front end** ([`docs/`](docs)): one static page, plain HTML and supabase-js, served by GitHub Pages. It reads the `station_latest` view and calls `station_profile`.
+- **Email alerts** (optional): "email me the evening before if my station is usually empty at my departure time", sent with [Resend](https://resend.com).
+  The page calls the [`alert-subscribe`](supabase/functions/alert-subscribe) function (double opt-in). Subscriptions live in a private table
+  that the public API can't read or write. [`send-alerts`](supabase/functions/send-alerts) runs hourly from pg_cron and emails at 19:00 local time.
+  Setup: a Resend API key, then `npx supabase secrets set --env-file <file>` with `RESEND_API_KEY`, `ALERT_FROM` and `SITE_URL`
+  (see [`.env.example`](supabase/functions/.env.example)), then `npx supabase functions deploy alert-subscribe send-alerts`.
+  Without a verified domain, Resend only delivers to your own address.
 
 **Try it:** https://thomasmorgana.github.io/dock-radar/
 

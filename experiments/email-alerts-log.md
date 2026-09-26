@@ -18,6 +18,7 @@ Kept as I go (times are UTC, from the shell clock). Agent: Claude Code (Opus 5.5
 | 2026-09-26 21:06 | **First alert email sent locally** (`send-alerts` with `any_hour`): due 1, sent 1. A rerun sends 0 (`last_sent_on` set, plus the Idempotency-Key). A normal hourly run at 23:06 Paris time sends 0 (not 19:00). **Feature works end to end locally** |
 | 2026-09-26 21:25 | The user approved deploying with the test sender (`onboarding@resend.dev`, only delivers to their address) and accepted that production verification stops at `due: 0`, since production has no Sunday history yet |
 | 2026-09-26 21:30 | `alert-subscribe` and `send-alerts` deployed to production (functions before the migration, so the new cron never calls a missing function). Waiting on the user for production secrets (H3) |
+| 2026-09-26 21:33 | H3 done (`RESEND_API_KEY`, `ALERT_FROM`, `SITE_URL` present). `db push --dry-run` shows only the new migration. My push was blocked by the agent's permission check, so it's handed to the user (H5) |
 
 ## 1. Discovery
 
@@ -52,6 +53,7 @@ create an account, create an API key, verify a domain, run `supabase secrets set
 |---|---|---|---|
 | H1 | Create a Resend account and a sending-only API key, and put it in `supabase/functions/.env` for local testing | Needs an account and a secret | Partner, and Supabase: the catalog's OAuth connect provisions an SMTP key for Auth but won't put an API key into Edge Function secrets |
 | H3 | Create a production Resend key and run `supabase secrets set --env-file supabase/functions/.env.production` | A secret, and the user's rule that they run `secrets set` themselves | Partner and Supabase (same cause as H1: nothing provisions the key into function secrets) |
+| H5 | Run `supabase db push` on production | My auto-confirmed production push (`echo y \| supabase db push`) was blocked by the coding agent's own permission classifier, even though the user had approved the deploy. `db push` has no non-interactive `--yes` that an agent can pass after a dry run | Neither (agent safety policy). There's a small Supabase CLI angle: without an explicit `--yes`, agents have to pipe input to the prompt |
 | H4 | Merge to `main` so GitHub Pages serves the form and the confirm/unsubscribe handling | The front end is static hosting outside Supabase; publishing is the user's call | Neither (this repo's hosting choice), made necessary by F7 |
 | H2 | Click the confirmation link in the real inbox | Only the inbox owner can (that's the point of double opt-in), and it checks real delivery and rendering, not just "Resend returned 200" | Neither (by design) |
 

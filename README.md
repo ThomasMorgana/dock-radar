@@ -137,8 +137,10 @@ On the local stack, the Vault `project_url` is `http://kong:8000`, and the secre
 
 ## Friction log
 
-Building this doubled as a test of the Supabase integration and publisher experience.
-See [FRICTION_LOG.md](FRICTION_LOG.md).
+Dock Radar doubled as a study of the Supabase marketplace from both sides, built agent-first:
+**publishing** an integration (Dock Radar itself), and **consuming** one from the partner catalog (the Resend email alerts).
+The headline: to an agent that reads pages as text, the catalog is empty, and when it can be read, it lists partners but doesn't install them.
+See [FRICTION_LOG.md](FRICTION_LOG.md), with the raw log in [experiments/](experiments/).
 
 ## Data & attribution
 

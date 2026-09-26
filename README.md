@@ -23,14 +23,36 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
 ```
 
 - **Postgres:** `stations` and `station_snapshots` tables, with RLS set to public read and no public write
-- **Edge Function:** fetches the GBFS feeds and upserts stations and snapshots *(coming next)*
-- **pg_cron + pg_net:** call the function every 5 minutes *(coming next)*
+- **Edge Function** [`ingest-gbfs`](supabase/functions/ingest-gbfs): fetches the GBFS feeds and upserts stations and snapshots. Only the project's secret key can call it.
+- **pg_cron + pg_net:** call the function every 5 minutes. The project URL and key come from Supabase Vault.
 - **SQL function** `station_profile(station_id, weekday, time)`: average bikes, plus % of time empty or full *(planned)*
 - **Front end:** one static HTML page on GitHub Pages *(planned)*
 
 ## Install in your own Supabase project
 
-*(Coming soon: migrations, `supabase functions deploy`, and setting your city's GBFS URL.)*
+*(Draft. It will be polished once the whole stack is in.)*
+
+1. Link the repo to your project and apply the migrations:
+   ```bash
+   npx supabase link --project-ref <project-ref>
+   npx supabase db push
+   ```
+2. Point it at your city's GBFS v3 discovery feed and deploy the function:
+   ```bash
+   npx supabase secrets set GBFS_URL="https://.../gbfs.json"
+   npx supabase functions deploy ingest-gbfs
+   ```
+3. Give the cron job your project URL and secret key (SQL editor, run once).
+   On the local stack, use `http://kong:8000` and the `SECRET_KEY` shown by `npx supabase status`.
+   ```sql
+   select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
+   select vault.create_secret('<your sb_secret_... key>', 'secret_key');
+   ```
+4. Check that data is coming in:
+   ```sql
+   select * from cron.job_run_details order by start_time desc limit 5;
+   select observed_at, count(*) from station_snapshots group by 1 order by 1 desc limit 5;
+   ```
 
 ## Friction log
 

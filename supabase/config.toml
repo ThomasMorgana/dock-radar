@@ -424,3 +424,17 @@ entrypoint = "./functions/ingest-gbfs/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/ingest-gbfs/*.html" ]
+
+# Email alerts. Both functions check the caller's key themselves (withSupabase), so the
+# platform JWT check is off: alert-subscribe takes the publishable key, send-alerts a secret key.
+[functions.alert-subscribe]
+enabled = true
+verify_jwt = false
+import_map = "./functions/alert-subscribe/deno.json"
+entrypoint = "./functions/alert-subscribe/index.ts"
+
+[functions.send-alerts]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-alerts/deno.json"
+entrypoint = "./functions/send-alerts/index.ts"

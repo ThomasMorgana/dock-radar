@@ -9,6 +9,7 @@ Kept as I go (times are UTC, from the shell clock). Agent: Claude Code (Opus 5.5
 | Time (UTC) | Milestone |
 |---|---|
 | 2026-09-26 20:47 | Session start, branch `feature/email-alerts` created, repo read (README, AGENTS.md) |
+| 2026-09-26 20:50 | **Partner chosen: Resend** (after 5 catalog pages and 7 doc pages) |
 
 ## 1. Discovery
 
@@ -16,17 +17,68 @@ URLs opened to choose and learn the integration, in order.
 
 | # | URL | What I saw |
 |---|---|---|
+| 1 | https://supabase.com/partners/catalog | Client-rendered: plain-text extraction returned an **empty body**, so I had to read the accessibility tree / DOM. Cookie banner (I chose "Opt out"). There's no "Email" category. The categories are AI, API, App Templates, Auth, Caching, Data Platform, DevTools, FDW, Low-Code, Messaging, Observability, Security and Storage. |
+| 2 | https://supabase.com/partners/catalog?q=email | Searching "email" gave 6 results: Resend (DevTools), AutoSend (DevTools), Gravatar (FDW, not a sender), Loops (Messaging, Auth emails only), OneSignal (Messaging) and Postmark (DevTools). Email senders are split across two categories. |
+| 3 | https://supabase.com/partners/catalog/resend | The "Add integration" button goes to `resend.com/settings/integrations` (Resend's own dashboard, UTM-tagged). The overview is **only about Auth SMTP** (password resets, confirmations). One sentence says the same account can send transactional email through the Resend API. Three doc links, one of them "Send With Supabase Edge Functions". **Install path: a link out.** The only automated part (Resend → Supabase OAuth) configures Auth SMTP, which this feature doesn't need. |
+| 4 | https://supabase.com/partners/catalog/postmark-by-activecampaign | "Add integration" goes to `postmarkapp.com/?utm_...` (the marketing home page). The overview says to paste SMTP credentials into Auth settings and claims "custom transactional messages triggered by your database events", with no link explaining how. **Only a link out.** |
+| 5 | https://supabase.com/partners/catalog/autosend | "Add integration" goes to `autosend.com/signup`. The listing embeds a manual SMTP-for-Auth recipe (a table of host, port, user, password). **A copy-paste recipe, for Auth SMTP only.** Nothing for application email. |
+| 6 | https://resend.com/docs/send-with-supabase-edge-functions.md | Resend's Edge Functions guide: `fetch` to `api.resend.com/emails`, key from `Deno.env`, `Deno.serve`. The function has **no auth** (`--no-verify-jwt`), so anyone with the URL can make it send. It says to run `supabase functions start`, which isn't a CLI command. |
+| 7 | https://resend.com/docs/knowledge-base/getting-started-with-resend-and-supabase.md | The listing's "Learn" link. It covers domain setup (DNS, "5–10 minutes"), the Auth integration (OAuth "Connect to Supabase"), and a second copy of the Edge Function guide that differs from #6: the API key is **hard-coded** in source (`'re_xxxxxxxxx'`), it imports the deprecated `deno.land/std@0.168.0` `serve`, and the text says "Resend Node.js SDK" while the code uses raw `fetch`. |
+| 8 | https://supabase.com/docs/guides/functions/examples/send-emails.md | The official Supabase guide (the `.md` URL returns clean Markdown). Also Resend with raw `fetch`, but current: `withSupabase({ auth: ['user','secret'] })` from `@supabase/server`, key read from secrets, `apikey` header for the local test. It matches the pattern `ingest-gbfs` already uses, so **this is the one I followed**. Small gaps: it serves and deploys with `--no-verify-jwt` without saying why, and says to store the key "in your `.env` file" without saying where. |
+| 9 | `npm pack @supabase/server@1.8.0` (README) | I needed the list of auth modes. `auth: 'publishable'` exists: a coarse "came from my own client" gate that uses the anon DB role, and CORS is handled for you. That's what a public subscribe endpoint needs. |
+| 10 | https://supabase.com/docs/guides/functions/limits.md | Confirms that on the default domain, GET responses with `text/html` are rewritten to `text/plain` unless you set up a custom domain. So confirm/unsubscribe links can't open a page served by an Edge Function; they have to go through the static front end. |
+| 11 | https://resend.com/docs/llms.txt, then `idempotency-keys.md`, `add-unsubscribe-to-transactional-emails.md`, `send-test-emails.md`, `account-quotas-and-limits.md` | `Idempotency-Key` header (kept 24 h), `List-Unsubscribe` header advice, the `delivered@resend.dev` test inbox, free tier of 100 emails/day and 3,000/month. The Resend docs have an `llms.txt` index and `.md` pages, which made them easy for an agent to read. |
+
+**Why Resend:** of the five email senders in the catalog, it's the only listing that links to a guide for
+sending *application* email from Edge Functions, and Supabase's own Edge Functions email guide also uses Resend.
+The Postmark, AutoSend and Loops listings only document Auth SMTP. OneSignal is a push-first platform, too heavy for one alert email.
+
+**Did the listing give an install path?** No. Every "Add integration" button is a UTM-tagged link to the partner's
+site (dashboard, home page or signup). Resend has a real OAuth connect, but it only sets up Auth SMTP and doesn't
+provision anything an Edge Function can use (no API key, no function secret). For this feature the path is:
+create an account, create an API key, verify a domain, run `supabase secrets set`, then write the `fetch` call yourself.
 
 ## 2. Handoffs
 
 | # | What I handed to the user | Why | Caused by |
 |---|---|---|---|
+| H1 | Create a Resend account and a sending-only API key, and put it in `supabase/functions/.env` for local testing | Needs an account and a secret | Partner, and Supabase: the catalog's OAuth connect provisions an SMTP key for Auth but won't put an API key into Edge Function secrets |
 
 ## 3. Frictions
 
 | # | Tag | Expected | What happened | Severity (1-3) |
 |---|---|---|---|---|
+| F1 | Supabase | Catalog readable as text by an agent | Client-rendered page: text extraction returned an empty body, so I fell back to the DOM/accessibility tree | 2 |
+| F2 | Supabase | An "Email" category | No such category. Senders are split between DevTools (Resend, Postmark, AutoSend) and Messaging (Loops, OneSignal); keyword search was the only way in | 1 |
+| F3 | Supabase | "Add integration" installs something (OAuth connect that sets a function secret, or a template) | Every button is a link out. Resend's OAuth exists but only configures Auth SMTP; nothing lands in Edge Function secrets | 3 |
+| F4 | docs (partner) | One canonical Resend + Edge Functions snippet | Two Resend pages disagree: one hard-codes the API key and uses a deprecated `std@0.168.0` import, the text says "Node.js SDK" while the code uses `fetch`, and it tells you to run `supabase functions start` (not a command) | 2 |
+| F5 | docs (partner) | The sample function is safe to deploy | Resend's sample has no caller auth and is deployed with `--no-verify-jwt`. Copied as-is, it's an open email relay billed to your quota. (Supabase's own version fixes this with `withSupabase`.) | 2 |
+| F6 | docs (Supabase) | The guide says where `.env` goes and why `--no-verify-jwt` is used | Neither is explained. I only knew because this repo already runs functions with `--env-file supabase/functions/.env` | 1 |
+| F7 | Supabase | An email link can open a small "You're subscribed" page served by the function | GET `text/html` is rewritten to `text/plain` on `*.supabase.co`. Confirm and unsubscribe links go to the static front end, which POSTs to the function (more code, though it also defeats link-scanner prefetch) | 2 |
 
 ## 4. Glue code
 
+(Filled in as the code is written.)
+
 ## 5. Design decisions
+
+**Collecting subscriptions without public writes: double opt-in through an Edge Function.**
+
+- The new `alert_subscriptions` table has RLS enabled, **no policies**, and all privileges revoked from
+  `anon`/`authenticated`. Only the service role (inside Edge Functions) touches it.
+- The page calls the `alert-subscribe` Edge Function (`auth: 'publishable'`) with `{email, station, weekday, time}`.
+  The function validates the input and stores the row as *pending*, with a random token, then sends a confirmation email through Resend.
+- Nothing is ever emailed to a pending address except that one confirmation. The link carries the token back
+  to the page, which POSTs it to the function to confirm. Every alert carries an unsubscribe link
+  (and a `List-Unsubscribe` header) that works the same way.
+- Why not Supabase Auth (magic link) plus RLS `auth.uid() = user_id`? That would work, but it adds sessions,
+  redirect-URL config and Auth SMTP setup to the page, and it turns "open to anyone with an email" into
+  a user table. Double opt-in gives the same guarantee (only the owner of the address can activate alerts)
+  with one table and no grants to the public roles.
+- Abuse limits: the same email can't request another confirmation within 10 minutes, a pending row expires,
+  and the function always answers with the same generic message, so it can't be used to test which addresses are subscribed.
+
+**Sending:** a second function `send-alerts` (`auth: 'secret'`, like `ingest-gbfs`) runs hourly from pg_cron.
+It asks the SQL function `due_alerts()` for confirmed subscriptions where it's currently 19:00 in the network's time zone,
+tomorrow is the subscribed weekday, and `station_profile` says the station is empty ≥ 50% of the time in that slot.
+Each email gets an `Idempotency-Key` of `alert/<id>/<date>`, so a retried run can't double-send.

@@ -12,6 +12,8 @@ Kept as I go (times are UTC, from the shell clock). Agent: Claude Code (Opus 5.5
 | 2026-09-26 20:50 | **Partner chosen: Resend** (after 5 catalog pages and 7 doc pages) |
 | 2026-09-26 20:57 | Local stack up (after the silent image pull, F8). Migration and pgTAP tests pass (18/18). Both functions served locally. Every path works up to the Resend call, which fails cleanly (`RESEND_API_KEY secret is not set`, row rolled back, 502 shown on the page) |
 | 2026-09-26 20:58 | Waiting on the user: Resend account and API key (H1) |
+| 2026-09-26 21:02 | H1 done (the user reports ~4 min, including signup). Seeded 3 synthetic past Sundays of "empty at 08:10" for station 67, **local DB only** |
+| 2026-09-26 21:03 | **First email sent locally**: subscribed from the page (station 67, Sunday 08:10). Resend accepted the confirmation email; the row is pending. A second request within 10 min: same reply, no email |
 
 ## 1. Discovery
 
@@ -45,6 +47,7 @@ create an account, create an API key, verify a domain, run `supabase secrets set
 | # | What I handed to the user | Why | Caused by |
 |---|---|---|---|
 | H1 | Create a Resend account and a sending-only API key, and put it in `supabase/functions/.env` for local testing | Needs an account and a secret | Partner, and Supabase: the catalog's OAuth connect provisions an SMTP key for Auth but won't put an API key into Edge Function secrets |
+| H2 | Click the confirmation link in the real inbox | Only the inbox owner can (that's the point of double opt-in), and it checks real delivery and rendering, not just "Resend returned 200" | Neither (by design) |
 
 ## 3. Frictions
 
@@ -60,6 +63,7 @@ create an account, create an API key, verify a domain, run `supabase secrets set
 | F8 | Supabase | `supabase start` shows progress | It sat silently for ~10 minutes with no output and no containers. Rerunning with `--debug` showed it was pulling a new Postgres image (`17.6.1.166`). Not specific to the integration, but it cost the most wall-clock time so far | 2 |
 | F9 | partner | A test mode that delivers anywhere, so I can test locally before any DNS work | Without a verified domain, `onboarding@resend.dev` only delivers to the Resend account owner's own address. That's fine for a local test (the user subscribes with their own address), but alerts to anyone else need DNS verification first | 1 |
 | F11 | Supabase | Editing `.env` while `functions serve` runs reloads it | It does reload, but a half-saved `.env` (parse error "unexpected character 'r' in variable name") makes the whole `functions serve` process exit instead of keeping the last good config. It happened while the user was pasting the Resend key, so I had to restart the server | 1 |
+| F12 | Supabase | `supabase db query "<multi-line SQL>"` works like psql | On Windows (Git Bash), a multi-line statement fails with a bare "syntax error at end of input". The same SQL on one line works. Only affected my test-data seeding | 1 |
 | F10 | Supabase (positive) | — | `@supabase/server` error bodies are very agent-friendly: calling with the wrong key returns `INVALID_API_KEY` with a hint ("You sent a publishable key, but this endpoint only accepts secret keys…") and the accepted modes. PostgREST's 42501 on the private table says which GRANT is missing. No guessing needed | — |
 
 ## 4. Glue code

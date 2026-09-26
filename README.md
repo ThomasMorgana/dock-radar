@@ -37,35 +37,96 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
 
 ## Install in your own Supabase project
 
-*(Draft. It will be polished once the whole stack is in.)*
+About 15 minutes, for any city with a GBFS v3 feed.
 
-1. Link the repo to your project and apply the migrations:
-   ```bash
-   npx supabase link --project-ref <project-ref>
-   npx supabase db push
-   ```
-2. Point it at your city's GBFS v3 discovery feed and deploy the function:
-   ```bash
-   npx supabase secrets set GBFS_URL="https://.../gbfs.json"
-   npx supabase functions deploy ingest-gbfs
-   ```
-3. Give the cron job your project URL and secret key (SQL editor, run once).
-   On the local stack, use `http://kong:8000` and the `SECRET_KEY` shown by `npx supabase status`.
-   ```sql
-   select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
-   select vault.create_secret('<your sb_secret_... key>', 'secret_key');
-   ```
-4. Check that data is coming in:
-   ```sql
-   select * from cron.job_run_details order by start_time desc limit 5;
-   select observed_at, count(*) from station_snapshots group by 1 order by 1 desc limit 5;
-   ```
+**You need:**
+- a Supabase project (the free tier works)
+- Node.js, so you can run the Supabase CLI with `npx supabase`, or the [standalone CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
+- your network's GBFS v3 discovery URL (`gbfs.json`). MobilityData keeps a [list of public feeds](https://github.com/MobilityData/gbfs/blob/master/systems.csv). Check that its `version` is `3.x`.
+
+### 1. Database
+
+Clone the repo, log in, link it to your project and apply the migrations.
+The link command asks for your database password.
+
+```bash
+git clone https://github.com/ThomasMorgana/dock-radar.git && cd dock-radar
+npx supabase login
+npx supabase link --project-ref <project-ref>
+npx supabase db push
+```
+
+This creates the tables, `station_profile()`, the `station_latest` view, and a cron job that runs every 5 minutes.
+
+### 2. Ingestion function
+
+```bash
+npx supabase secrets set GBFS_URL="https://.../gbfs.json"
+npx supabase functions deploy ingest-gbfs
+```
+
+### 3. Let the cron job call the function
+
+The cron job reads your project URL and secret key from Vault. Run this once in the SQL editor.
+Your secret key is under **Project Settings → API Keys**.
+
+```sql
+select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
+select vault.create_secret('<your sb_secret_... key>', 'secret_key');
+```
+
+Until this is done, the cron job runs but fails.
+
+### 4. Check that data is coming in
+
+Within 5 minutes, each poll should add one row per station:
+
+```sql
+select observed_at, count(*) from station_snapshots group by 1 order by 1 desc limit 5;
+```
+
+If nothing arrives, these two queries show why:
+
+```sql
+select status, return_message, start_time from cron.job_run_details order by start_time desc limit 5;
+select status_code, content, error_msg from net._http_response order by id desc limit 5;
+```
+
+### 5. Front end
+
+Edit [`docs/config.js`](docs/config.js):
+- `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`: the publishable key is designed to be public, and RLS only allows reading.
+- `TIMEZONE`: your network's time zone, for example `America/New_York`. It's passed to `station_profile`.
+
+Also update the attribution in the footer of [`docs/index.html`](docs/index.html) to credit your data provider.
+Then host `docs/` anywhere static. On GitHub Pages: **Settings → Pages → Deploy from a branch → `main` / `/docs`**.
+
+### Good to know
+
+- **History takes time.** The "usually" numbers need a few weeks of the same weekday to be meaningful.
+- **Storage grows steadily.** Each snapshot row takes about 100 bytes, including its index. A 230-station network adds about
+  7 MB a day, or about 200 MB a month, so the free tier's 500 MB lasts roughly 2–3 months. See "Ideas for v2" for a roll-up plan.
+- **Free-tier projects pause when inactive.** Check your project's status now and then, because collection stops while it's paused.
+- **To stop collecting:** `select cron.unschedule('ingest-gbfs');`
+
+### Local development
+
+```bash
+npx supabase start                 # needs Docker
+npx supabase functions serve --env-file supabase/functions/.env   # copy .env.example first
+npx supabase test db               # pgTAP tests
+```
+
+On the local stack, the Vault `project_url` is `http://kong:8000`, and the secret key comes from `npx supabase status`.
 
 ## Ideas for v2
 
 - **Read the time zone from the feed.** `station_profile` defaults to `Europe/Paris`, so other cities have to pass
   `p_timezone`. GBFS `system_information` publishes the network's `timezone`. Ingestion could store it, and the
   profile would then be correct everywhere without any configuration.
+- **Roll up old history.** Keep raw snapshots for a few weeks, and aggregate older ones into per-day, per-slot
+  summaries: samples, how many were empty or full, and the sum of bikes. `station_profile` would read both, and storage
+  would stop growing with time.
 
 ## Friction log
 

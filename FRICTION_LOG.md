@@ -1,6 +1,6 @@
 # Friction log : publishing and consuming Supabase integrations, agent-first
 
-The role describes a marketplace that developers, and more and more their agents, use from both sides. So I tried both sides, the way I build today : a coding agent (Claude Code) did the work, I made the decisions.
+A marketplace has two sides : developers, and more and more their agents, publish integrations on one and consume them on the other. So I tried both, the way I build today : a coding agent (Claude Code) did the work, I made the decisions.
 
 - Part 1, publishing : I built [Dock Radar](README.md), an open-source GBFS => Supabase integration, and tried to make it installable and listable.
 - Part 2, consuming : I had a fresh agent pick an email provider from the [Supabase partner catalog](https://supabase.com/partners/catalog) and wire it into Dock Radar (email alerts through Resend).
@@ -35,14 +35,14 @@ From an empty folder to production data every 5 minutes in under an hour. Finish
 
 7 in total. Most are fine one-time steps : creating the project, `supabase login`, the GitHub repo and Pages, registering the OAuth app. Two are worth fixing :
 
-| # | Handoff | What I'd change (as PM) |
+| # | Handoff | What I'd change |
 |---|---|---|
 | H1 | `supabase link` asks for the database password | After `login`, asking for it just to push migrations seems redundant. |
 | H2 | Paste a secret key into Vault in the SQL editor, so pg_cron can call the ingestion function | This is the one that blocks agent-driven installs. Two options : let SQL call a project's own Edge Functions with built-in credentials, or let `config.toml` declare the secrets a project needs and have the platform provision them. |
 
 ### Frictions
 
-| # | What happened | Severity | What I'd change (as PM) |
+| # | What happened | Severity | What I'd change |
 |---|---|---|---|
 | D1 | **The cron job fails silently.** It needs the project URL and a key, which can't go in a migration (H2). Until someone adds them, errors only show up in `cron.job_run_details` and `net._http_response`. | 2 | Warn in the dashboard when a cron job keeps failing. |
 | D2 | **The catalog is empty as text.** `/partners/integrations` redirects to [`/partners/catalog`](https://supabase.com/partners/catalog), whose server HTML has one visible line : every listing sits in `<script>` data. Same thing on single listing pages. | 3 | Server-rendered listings, plus a machine-readable index (`llms.txt`, JSON or an MCP tool). |
@@ -67,7 +67,7 @@ Run B took 75 minutes to the first production cron run. The agent was blocked fo
 
 Besides clicking the confirmation email (by design) and merging to `main` (a hosting choice), three matter :
 
-| # | Handoff | What I'd change (as PM) |
+| # | Handoff | What I'd change |
 |---|---|---|
 | E1 | Create a Resend key and put it in function secrets, locally then in production | The catalog's OAuth connect already creates a Resend key for Auth SMTP. Let it also write `RESEND_API_KEY` into Edge Function secrets, for both environments. |
 | E2 | Run `db push` on production : the agent's own safety check blocked it, and `db push` has no `--yes` flag it can pass after a dry run | Add a non-interactive confirm flag. |
@@ -75,7 +75,7 @@ Besides clicking the confirmation email (by design) and merging to `main` (a hos
 
 ### Frictions
 
-| # | What happened | Severity | What I'd change (as PM) |
+| # | What happened | Severity | What I'd change |
 |---|---|---|---|
 | F1 | **The catalog is empty as text, again.** Both runs only recovered by driving a browser. Guessed URLs failed (`/partners/catalog/postmark` is a 404, `?category=messaging` is ignored), and there's no "Email" category : senders are split between DevTools and Messaging. | 2 | Same as D2, plus stable URLs and categories by developer need ("send email"). |
 | F2 | **"Add integration" installs nothing.** The three buttons I checked link out : to Resend's dashboard, Postmark's home page and AutoSend's signup. Resend's OAuth connect is real, but it only configures Auth SMTP. | 3 | Listings should say what they install, and installs should cover the common app use case, secrets included. |

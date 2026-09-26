@@ -37,7 +37,7 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
 
 ## Install in your own Supabase project
 
-About 15 minutes, for any city with a GBFS v3 feed.
+About 15 minutes, for any city with a GBFS v3 feed. Installing with an AI agent? Point it to [AGENTS.md](AGENTS.md).
 
 **You need:**
 - a Supabase project (the free tier works)
@@ -68,7 +68,8 @@ npx supabase functions deploy ingest-gbfs
 ### 3. Let the cron job call the function
 
 The cron job reads your project URL and secret key from Vault. Run this once in the SQL editor.
-Your secret key is under **Project Settings → API Keys**.
+Create a dedicated secret key for it under **Project Settings → API Keys**, named `pg-cron` for example.
+That way you can rotate or revoke it without touching anything else.
 
 ```sql
 select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');

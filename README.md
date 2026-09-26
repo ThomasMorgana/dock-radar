@@ -31,7 +31,9 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
   curl -X POST "$SUPABASE_URL/rest/v1/rpc/station_profile" -H "apikey: $PUBLISHABLE_KEY" \
     -H "Content-Type: application/json" -d '{"p_station_id": "1", "p_weekday": 1, "p_time": "08:10"}'
   ```
-- **Front end:** one static HTML page on GitHub Pages *(planned)*
+- **Front end** ([`docs/`](docs)): one static page, plain HTML and supabase-js, served by GitHub Pages. It reads the `station_latest` view and calls `station_profile`.
+
+**Try it:** https://thomasmorgana.github.io/dock-radar/
 
 ## Install in your own Supabase project
 

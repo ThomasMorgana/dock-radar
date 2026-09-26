@@ -12,7 +12,7 @@ build one. It works with any network that publishes a [GBFS](https://gbfs.org) *
 - **Optional email alerts:** table `alert_subscriptions` (private: RLS on, no grants to `anon`/`authenticated`),
   SQL function `due_alerts()`, Edge Functions `alert-subscribe` and `send-alerts`, pg_cron jobs `send-alerts`
   (hourly) and `expire-alert-subscriptions` (daily). They need Resend secrets `RESEND_API_KEY`, `ALERT_FROM` and `SITE_URL`.
-  The user creates the Resend key and runs `supabase secrets set` themselves. Without them, `send-alerts` returns 500 every hour.
+  The user creates the Resend key and runs `supabase secrets set` themselves. Without them, subscribing and sending fail with 502.
 - **Licence:** MIT. Credit the user's data provider in the front end.
 
 ## Before you start, check

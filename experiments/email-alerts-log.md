@@ -10,6 +10,8 @@ Kept as I go (times are UTC, from the shell clock). Agent: Claude Code (Opus 5.5
 |---|---|
 | 2026-09-26 20:47 | Session start, branch `feature/email-alerts` created, repo read (README, AGENTS.md) |
 | 2026-09-26 20:50 | **Partner chosen: Resend** (after 5 catalog pages and 7 doc pages) |
+| 2026-09-26 20:57 | Local stack up (after the silent image pull, F8). Migration and pgTAP tests pass (18/18). Both functions served locally. Every path works up to the Resend call, which fails cleanly (`RESEND_API_KEY secret is not set`, row rolled back, 502 shown on the page) |
+| 2026-09-26 20:58 | Waiting on the user: Resend account and API key (H1) |
 
 ## 1. Discovery
 
@@ -55,6 +57,9 @@ create an account, create an API key, verify a domain, run `supabase secrets set
 | F5 | docs (partner) | The sample function is safe to deploy | Resend's sample has no caller auth and is deployed with `--no-verify-jwt`. Copied as-is, it's an open email relay billed to your quota. (Supabase's own version fixes this with `withSupabase`.) | 2 |
 | F6 | docs (Supabase) | The guide says where `.env` goes and why `--no-verify-jwt` is used | Neither is explained. I only knew because this repo already runs functions with `--env-file supabase/functions/.env` | 1 |
 | F7 | Supabase | An email link can open a small "You're subscribed" page served by the function | GET `text/html` is rewritten to `text/plain` on `*.supabase.co`. Confirm and unsubscribe links go to the static front end, which POSTs to the function (more code, though it also defeats link-scanner prefetch) | 2 |
+| F8 | Supabase | `supabase start` shows progress | It sat silently for ~10 minutes with no output and no containers. Rerunning with `--debug` showed it was pulling a new Postgres image (`17.6.1.166`). Not specific to the integration, but it cost the most wall-clock time so far | 2 |
+| F9 | partner | A test mode that delivers anywhere, so I can test locally before any DNS work | Without a verified domain, `onboarding@resend.dev` only delivers to the Resend account owner's own address. That's fine for a local test (the user subscribes with their own address), but alerts to anyone else need DNS verification first | 1 |
+| F10 | Supabase (positive) | — | `@supabase/server` error bodies are very agent-friendly: calling with the wrong key returns `INVALID_API_KEY` with a hint ("You sent a publishable key, but this endpoint only accepts secret keys…") and the accepted modes. PostgREST's 42501 on the private table says which GRANT is missing. No guessing needed | — |
 
 ## 4. Glue code
 

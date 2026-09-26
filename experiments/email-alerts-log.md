@@ -13,6 +13,8 @@ Kept as I go (times are UTC, from the shell clock). Agent: Claude Code (Opus 5.5
 | 2026-09-26 20:57 | Local stack up (after the silent image pull, F8). Migration and pgTAP tests pass (18/18). Both functions served locally. Every path works up to the Resend call, which fails cleanly (`RESEND_API_KEY secret is not set`, row rolled back, 502 shown on the page) |
 | 2026-09-26 20:58 | Waiting on the user: Resend account and API key (H1) |
 | 2026-09-26 21:02 | H1 done (the user reports ~4 min, including signup). Seeded 3 synthetic past Sundays of "empty at 08:10" for station 67, **local DB only** |
+| 2026-09-26 21:05 | The user clicked the confirmation link in their real inbox; the page POSTed the token and the row is confirmed (H2) |
+| 2026-09-26 21:06 | **First alert email sent locally** (`send-alerts` with `any_hour`): due 1, sent 1. A rerun sends 0 (`last_sent_on` set, plus the Idempotency-Key). A normal hourly run at 23:06 Paris time sends 0 (not 19:00). **Feature works end to end locally** |
 | 2026-09-26 21:03 | **First email sent locally**: subscribed from the page (station 67, Sunday 08:10). Resend accepted the confirmation email; the row is pending. A second request within 10 min: same reply, no email |
 
 ## 1. Discovery
@@ -68,7 +70,19 @@ create an account, create an API key, verify a domain, run `supabase secrets set
 
 ## 4. Glue code
 
-(Filled in as the code is written.)
+Total written for the feature: about **306 non-comment lines** of backend code (migration 78, `alert-subscribe` 100,
+`send-alerts` 44, `_shared/resend.ts` 38, pgTAP 46), plus about 50 lines of front end and 20 of config (`config.toml`, `.env.example`).
+Most of it is the feature itself: validation, `due_alerts()`, the send loop, tests. The glue a better integration could have removed:
+
+| Glue | Lines | What would remove it |
+|---|---|---|
+| Resend client: `Email` type, `sendEmail()` with `fetch`, auth header, `Idempotency-Key`, error mapping (`_shared/resend.ts` L10-42) | ~30 | Both official guides use raw `fetch`, so each project writes this wrapper. A connect flow that injects the key plus a documented `npm:resend` snippet (`resend.emails.send(..., { idempotencyKey })`) would cut it to ~5 |
+| Secret plumbing: `RESEND_API_KEY` check, `ALERT_FROM` default, 6 lines of `.env.example`, and H1 plus the later `supabase secrets set` | ~10 (plus 2 handoffs) | "Add integration" doing an OAuth connect that writes `RESEND_API_KEY` into the project's Edge Function secrets, as it already does for Auth SMTP credentials |
+| HTML-rewrite workaround: `siteLink()`, `SITE_URL`, the front end's `handleEmailLink()`, and confirm/unsubscribe returning JSON for the page to render instead of a page (F7) | ~20 | Allowing simple `text/html` responses from functions on `*.supabase.co`, or a documented "email link landing" pattern |
+| Double opt-in and unsubscribe tokens (`token`/`confirmed_at` columns, confirm/unsubscribe actions, cooldown, cap) | ~60 | Arguably the app's job: Resend's docs say it "doesn't manage contact lists for transactional emails". A provider-side double opt-in (Resend Audiences/Topics are for broadcasts) would remove most of it. I'm not counting it as pure glue |
+| HTML escaping and inline email templates | ~10 | Resend templates or React Email. I didn't use them, to keep the feature small |
+
+**Clearly removable: ~60 lines** (client, secrets, HTML workaround). **Arguably removable: another ~60** (subscription management).
 
 ## 5. Design decisions
 

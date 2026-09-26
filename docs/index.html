@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dock Radar</title>
+  <meta name="description" content="Will there be a bike at my station when I leave? How TBM Le Vélo stations in Bordeaux usually look at this time of the week.">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Dock Radar</h1>
+      <p class="tagline">Will there be a bike at my station when I leave?</p>
+    </header>
+
+    <form id="controls" autocomplete="off">
+      <label class="field station-field">
+        <span>Station</span>
+        <div class="row">
+          <input id="station" list="station-list" placeholder="Loading stations…" disabled>
+          <button type="button" id="nearest" title="Use my location">Nearest</button>
+        </div>
+        <datalist id="station-list"></datalist>
+      </label>
+
+      <div class="row">
+        <label class="field">
+          <span>Leaving on</span>
+          <select id="weekday">
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+            <option value="7">Sunday</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>at</span>
+          <input id="time" type="time" step="300">
+        </label>
+        <button type="button" id="now" class="secondary">Now</button>
+      </div>
+    </form>
+
+    <p id="status" class="status" role="status"></p>
+
+    <section id="result" hidden>
+      <article class="card">
+        <h2 id="station-name"></h2>
+        <p id="live" class="live"></p>
+      </article>
+
+      <article class="card">
+        <h3 id="usual-title">Usually at this time</h3>
+        <div id="usual"></div>
+      </article>
+
+      <article class="card" id="nearby-card" hidden>
+        <h3>Nearby stations, same time</h3>
+        <ul id="nearby" class="nearby"></ul>
+      </article>
+    </section>
+
+    <footer>
+      <p>
+        Station data: <strong>Bordeaux Métropole / TBM</strong>, open data under the Licence Ouverte.
+        Dock Radar records availability every 5 minutes, and the history grows every week.
+      </p>
+      <p><a href="https://github.com/ThomasMorgana/dock-radar">Source on GitHub</a> · Built with Supabase</p>
+    </footer>
+  </main>
+</body>
+</html>

@@ -19,6 +19,7 @@ Kept as I go (times are UTC, from the shell clock). Agent: Claude Code (Opus 5.5
 | 2026-09-26 21:25 | The user approved deploying with the test sender (`onboarding@resend.dev`, only delivers to their address) and accepted that production verification stops at `due: 0`, since production has no Sunday history yet |
 | 2026-09-26 21:30 | `alert-subscribe` and `send-alerts` deployed to production (functions before the migration, so the new cron never calls a missing function). Waiting on the user for production secrets (H3) |
 | 2026-09-26 21:33 | H3 done (`RESEND_API_KEY`, `ALERT_FROM`, `SITE_URL` present). `db push --dry-run` shows only the new migration. My push was blocked by the agent's permission check, so it's handed to the user (H5) |
+| 2026-09-26 21:42 | **Deployed.** The user ran `db push`. Migration listed on production, 4 cron jobs present. On production, anon REST read, insert and `rpc/due_alerts` are denied (42501), and `send-alerts` rejects the publishable key. A production subscribe sent a real confirmation email from production (21:42:21). Confirmed with a direct POST to the function, since the GitHub Pages front end isn't merged yet (H4) |
 
 ## 1. Discovery
 

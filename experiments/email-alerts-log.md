@@ -13,7 +13,7 @@ Kept as I go (times are UTC, from the shell clock). Agent: Claude Code (Opus 5.5
 | 2026-09-26 20:57 | Local stack up (after the silent image pull, F8). Migration and pgTAP tests pass (18/18). Both functions served locally. Every path works up to the Resend call, which fails cleanly (`RESEND_API_KEY secret is not set`, row rolled back, 502 shown on the page) |
 | 2026-09-26 20:58 | Waiting on the user: Resend account and API key (H1) |
 | 2026-09-26 21:02 | H1 done. Seeded 3 synthetic past Sundays of "empty at 08:10" for station 67, **local DB only** |
-
+| 2026-09-26 21:03 | **First email sent locally**: subscribed from the page (station 67, Sunday 08:10). Resend accepted the confirmation email; the row is pending. A second request within 10 min: same reply, no email |
 | 2026-09-26 21:05 | The user clicked the confirmation link in their real inbox; the page POSTed the token and the row is confirmed (H2) |
 | 2026-09-26 21:06 | **First alert email sent locally** (`send-alerts` with `any_hour`): due 1, sent 1. A rerun sends 0 (`last_sent_on` set, plus the Idempotency-Key). A normal hourly run at 23:06 Paris time sends 0 (not 19:00). **Feature works end to end locally** |
 

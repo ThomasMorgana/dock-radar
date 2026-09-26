@@ -194,6 +194,7 @@ async function render() {
     $("live").innerHTML = renderLive(station);
     $("usual-title").textContent = `Usually on ${DAYS[weekday - 1]}s around ${time}`;
     $("usual").innerHTML = renderUsual(current, earlier, weekday);
+    $("alert-title").textContent = `Email me the evening before each ${DAYS[weekday - 1]}`;
 
     nearby.forEach((n, i) => (n.profile = nearbyProfiles[i]));
     $("nearby").innerHTML = renderNearby(nearby, current);
@@ -206,6 +207,47 @@ async function render() {
     console.error(err);
     $("status").textContent = "Couldn't load data. Please try again in a moment.";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Email alerts (the alert-subscribe Edge Function; subscriptions aren't readable or writable via the API)
+// ---------------------------------------------------------------------------
+
+async function callAlerts(body) {
+  const { data, error } = await supabase.functions.invoke("alert-subscribe", { body });
+  if (!error) return data;
+  const reply = await error.context?.json?.().catch(() => null);
+  return reply ?? { ok: false, message: "Something went wrong. Please try again later." };
+}
+
+async function subscribe(e) {
+  e.preventDefault();
+  const station = byLabel.get($("station").value);
+  if (!station) return;
+  const button = $("alert-form").querySelector("button");
+  button.disabled = true;
+  $("alert-status").textContent = "Sending…";
+  const reply = await callAlerts({
+    action: "subscribe",
+    email: $("alert-email").value,
+    station_id: station.id,
+    weekday: Number($("weekday").value),
+    time: $("time").value,
+    timezone: TIMEZONE,
+  });
+  $("alert-status").textContent = reply.message;
+  button.disabled = false;
+}
+
+/** Confirm and unsubscribe links in emails land here: ?confirm=<token> or ?unsubscribe=<token>. */
+async function handleEmailLink() {
+  const params = new URLSearchParams(location.search);
+  const action = ["confirm", "unsubscribe"].find((a) => params.has(a));
+  if (!action) return;
+  history.replaceState(null, "", location.pathname); // don't re-run it on refresh
+  $("status").textContent = action === "confirm" ? "Confirming your alert…" : "Unsubscribing…";
+  const reply = await callAlerts({ action, token: params.get(action) });
+  $("status").textContent = reply.message;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +295,8 @@ async function init() {
     const station = stations.find((s) => s.id === id);
     if (station) selectStation(station);
   });
+  $("alert-form").addEventListener("submit", subscribe);
+  handleEmailLink();
 
   try {
     await loadStations();

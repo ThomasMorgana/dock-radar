@@ -63,6 +63,20 @@
         <h3>Nearby stations, same time</h3>
         <ul id="nearby" class="nearby"></ul>
       </article>
+
+      <article class="card">
+        <h3 id="alert-title">Email me the evening before</h3>
+        <form id="alert-form" class="row">
+          <label class="field">
+            <span>If this station is usually empty at this time, email</span>
+            <input id="alert-email" type="email" required placeholder="you@example.com" autocomplete="email">
+          </label>
+          <button type="submit">Alert me</button>
+        </form>
+        <p id="alert-status" class="muted small" role="status">
+          You'll get one email to confirm. Every alert has a one-click unsubscribe link.
+        </p>
+      </article>
     </section>
 
     <footer>

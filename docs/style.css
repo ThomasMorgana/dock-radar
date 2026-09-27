@@ -50,8 +50,21 @@ header h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.02em; }
 form { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
 .row { display: flex; gap: 0.5rem; align-items: end; flex-wrap: wrap; }
 .field { display: grid; gap: 0.25rem; flex: 1; min-width: 8rem; }
-.field > span { font-size: 0.85rem; color: var(--muted); }
-.station-field .row input { flex: 1; min-width: 0; }
+.field > span, .field > label { font-size: 0.85rem; color: var(--muted); }
+
+.combo { position: relative; flex: 1; min-width: 0; }
+.combo input { width: 100%; }
+.combo ul {
+  position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; right: 0;
+  max-height: min(18rem, 45vh); overflow-y: auto; overscroll-behavior: contain;
+  margin: 0; padding: 0.25rem 0; list-style: none;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+}
+.combo li { padding: 0.6rem 0.75rem; cursor: pointer; }
+.combo li[aria-selected="true"] { background: var(--meter-bg); }
+.combo li.empty { color: var(--muted); cursor: default; }
+@media (hover: hover) { .combo li[role="option"]:hover { background: var(--meter-bg); } }
 
 input, select, button {
   font: inherit;
@@ -81,6 +94,9 @@ button.secondary { background: var(--card); color: var(--text); border-color: va
   margin-bottom: 0.75rem;
 }
 .card h2 { margin: 0 0 0.25rem; font-size: 1.3rem; }
+.card-head { display: flex; justify-content: space-between; align-items: start; gap: 0.5rem; }
+.card-head button { padding: 0.3rem 0.7rem; flex-shrink: 0; }
+#share-status:empty { display: none; }
 .card h3 { margin: 0 0 0.5rem; font-size: 1rem; color: var(--muted); font-weight: 600; }
 .card p { margin: 0.35rem 0; }
 

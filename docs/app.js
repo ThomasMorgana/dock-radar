@@ -12,7 +12,7 @@ const STALE_AFTER_MIN = 20;
 const $ = (id) => document.getElementById(id);
 
 let stations = [];        // rows of the station_latest view
-let byLabel = new Map();  // datalist label -> station
+let byLabel = new Map();  // station picker label -> station
 let renderId = 0;         // ignores results of outdated requests
 
 // ---------------------------------------------------------------------------
@@ -28,10 +28,6 @@ async function loadStations() {
   const counts = new Map();
   for (const s of stations) counts.set(s.name, (counts.get(s.name) ?? 0) + 1);
   byLabel = new Map(stations.map((s) => [counts.get(s.name) > 1 ? `${s.name} (${s.id})` : s.name, s]));
-
-  $("station-list").replaceChildren(
-    ...[...byLabel.keys()].map((label) => Object.assign(document.createElement("option"), { value: label })),
-  );
 }
 
 async function profile(stationId, weekday, time) {
@@ -99,6 +95,24 @@ function remember(stationId) {
 
 function remembered() {
   try { return localStorage.getItem("dock-radar:station"); } catch { return null; }
+}
+
+// Shareable links: ?station=<id>&day=<ISO 1-7>&time=<HH:MM>. Every parameter is optional.
+
+function shareUrl(stationId, weekday, time) {
+  // Built by hand so the time reads 08:10 rather than 08%3A10.
+  return `${location.origin}${location.pathname}?station=${encodeURIComponent(stationId)}&day=${weekday}&time=${time}`;
+}
+
+function linkParams() {
+  const params = new URLSearchParams(location.search);
+  const day = params.get("day");
+  const time = params.get("time");
+  return {
+    stationId: params.get("station"),
+    weekday: /^[1-7]$/.test(day ?? "") ? day : null,
+    time: /^([01]\d|2[0-3]):[0-5]\d$/.test(time ?? "") ? time : null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +187,8 @@ async function render() {
   const time = $("time").value;
   if (!time) return;
 
+  history.replaceState(null, "", shareUrl(station.id, weekday, time));
+  $("share-status").textContent = "";
   $("status").textContent = "Loading…";
   const earlierTime = minusMinutes(time, 15);
   const nearby = stations
@@ -251,6 +267,108 @@ async function handleEmailLink() {
 }
 
 // ---------------------------------------------------------------------------
+// Station picker: a combobox rather than a <datalist>, which mobile browsers
+// support poorly (Firefox for Android ignores it, iOS hides it in the keyboard bar).
+// ---------------------------------------------------------------------------
+
+/** Lowercase, accents and punctuation stripped: "Gare St-Jean" -> "gare st jean". */
+function fold(text) {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+let matches = [];  // labels currently shown in the list
+let active = -1;   // index of the highlighted option
+
+function openList(query) {
+  const words = fold(query).split(" ").filter(Boolean);
+  const labels = [...byLabel.keys()];
+  matches = words.length === 0 ? labels : labels
+    .map((label) => ({ label, folded: fold(label) }))
+    .filter(({ folded }) => words.every((w) => folded.includes(w)))
+    .sort((a, b) => b.folded.startsWith(words[0]) - a.folded.startsWith(words[0]))
+    .map(({ label }) => label);
+  active = words.length > 0 && matches.length > 0 ? 0 : -1;
+
+  const list = $("station-list");
+  list.replaceChildren(...(matches.length > 0
+    ? matches.map((label, i) => {
+        const li = Object.assign(document.createElement("li"), { id: `station-opt-${i}`, textContent: label });
+        li.setAttribute("role", "option");
+        return li;
+      })
+    : [Object.assign(document.createElement("li"), { className: "empty", textContent: "No matching station" })]));
+  list.scrollTop = 0;
+  list.hidden = false;
+  $("station").setAttribute("aria-expanded", "true");
+  highlight(active);
+}
+
+function closeList() {
+  $("station-list").hidden = true;
+  $("station").setAttribute("aria-expanded", "false");
+  $("station").removeAttribute("aria-activedescendant");
+  active = -1;
+}
+
+function highlight(index) {
+  const options = $("station-list").querySelectorAll('[role="option"]');
+  options.forEach((li, i) => li.setAttribute("aria-selected", String(i === index)));
+  active = index;
+  if (index < 0) return $("station").removeAttribute("aria-activedescendant");
+  $("station").setAttribute("aria-activedescendant", options[index].id);
+  options[index].scrollIntoView({ block: "nearest" });
+}
+
+function pick(label) {
+  $("station").value = label;
+  closeList();
+  render();
+}
+
+function onStationKey(e) {
+  const open = !$("station-list").hidden;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!open) return openList($("station").value);
+    if (matches.length === 0) return;
+    const step = e.key === "ArrowDown" ? 1 : -1;
+    highlight((active + step + matches.length) % matches.length);
+  } else if (e.key === "Enter") {
+    e.preventDefault(); // don't submit the form
+    if (open && active >= 0) pick(matches[active]);
+    else if (open && matches.length === 1) pick(matches[0]);
+  } else if (e.key === "Escape" && open) {
+    closeList();
+  }
+}
+
+/** On blur, accept an exact match typed by hand (ignoring case and accents). */
+function onStationBlur() {
+  closeList();
+  const typed = fold($("station").value);
+  const label = [...byLabel.keys()].find((l) => fold(l) === typed);
+  if (label && label !== $("station").value) pick(label);
+}
+
+function setUpStationPicker() {
+  const input = $("station");
+  const list = $("station-list");
+  input.addEventListener("focus", () => { input.select(); openList(""); });
+  input.addEventListener("input", () => openList(input.value));
+  input.addEventListener("keydown", onStationKey);
+  input.addEventListener("blur", onStationBlur);
+  // Keep focus on the input while tapping an option, so blur doesn't close the list first.
+  list.addEventListener("pointerdown", (e) => e.preventDefault());
+  list.addEventListener("mousedown", (e) => e.preventDefault());
+  list.addEventListener("click", (e) => {
+    const li = e.target.closest('[role="option"]');
+    if (!li) return;
+    pick(li.textContent);
+    input.blur(); // hide the mobile keyboard
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Wiring
 // ---------------------------------------------------------------------------
 
@@ -264,6 +382,23 @@ function setNow() {
   const now = nowInNetwork();
   $("weekday").value = String(now.weekday);
   $("time").value = now.time;
+}
+
+async function share() {
+  const station = byLabel.get($("station").value);
+  if (!station) return;
+  const url = shareUrl(station.id, $("weekday").value, $("time").value);
+  const text = `${station.name}: ${DAYS[$("weekday").value - 1]}s around ${$("time").value}`;
+  if (navigator.share) {
+    try { await navigator.share({ title: "Dock Radar", text, url }); } catch { /* cancelled */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    $("share-status").textContent = "Link copied.";
+  } catch {
+    $("share-status").textContent = url;
+  }
 }
 
 function useNearest() {
@@ -284,8 +419,11 @@ function useNearest() {
 }
 
 async function init() {
+  const link = linkParams(); // read before handleEmailLink clears the query string
   setNow();
-  $("station").addEventListener("change", render);
+  if (link.weekday) $("weekday").value = link.weekday;
+  if (link.time) $("time").value = link.time;
+  setUpStationPicker();
   $("weekday").addEventListener("change", render);
   $("time").addEventListener("change", render);
   $("now").addEventListener("click", () => { setNow(); render(); });
@@ -295,6 +433,7 @@ async function init() {
     const station = stations.find((s) => s.id === id);
     if (station) selectStation(station);
   });
+  $("share").addEventListener("click", share);
   $("alert-form").addEventListener("submit", subscribe);
   handleEmailLink();
 
@@ -308,8 +447,11 @@ async function init() {
   $("station").disabled = false;
   $("station").placeholder = "Type a station name";
 
-  const saved = stations.find((s) => s.id === remembered());
+  // A shared link wins over the station remembered on this device.
+  const linked = stations.find((s) => s.id === link.stationId);
+  const saved = linked ?? stations.find((s) => s.id === remembered());
   if (saved) selectStation(saved);
+  else if (link.stationId) $("status").textContent = "The station in this link doesn't exist anymore. Pick one from the list.";
 }
 
 init();

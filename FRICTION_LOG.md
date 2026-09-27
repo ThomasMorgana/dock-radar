@@ -53,7 +53,7 @@ From an empty folder to production data every 5 minutes in under an hour. Finish
 
 ### Discovery test
 
-Two fresh agents were asked to track bike-share availability in Bordeaux, checking for an existing integration first. Neither could read the catalog. One found Dock Radar through web search and GitHub (probably helped by clues on this machine), the other didn't and built its own. Both drafted the whole thing in a few minutes: what a listing can still bring is trust, maintenance and a hands-off install.
+Two fresh agents were asked to track bike-share availability in Bordeaux, checking for an existing integration first. Neither could read the catalog. One found Dock Radar through web search and GitHub, the other didn't and built its own. Both drafted the whole thing in a few minutes: what a listing can still bring is trust, maintenance and a hands-off install.
 
 ---
 

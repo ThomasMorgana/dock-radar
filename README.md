@@ -10,6 +10,8 @@ in Supabase and tells you how your station *usually* looks at this time on this 
 It works with any bike-share network that publishes a [GBFS v3](https://gbfs.org) feed.
 The first feed is TBM Le Vélo in Bordeaux.
 
+[![Dock Radar showing the Chartrons station in Bordeaux: often empty on Sundays around 10:00, with a better nearby station](docs/img/screenshot.png)](https://thomasmorgana.github.io/dock-radar/)
+
 > **Status:** work in progress. Profiles need history. On day one there are only a few hours of data,
 > and the "usually" numbers become meaningful after a week or two of collection.
 

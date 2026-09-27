@@ -54,10 +54,16 @@
             <option value="7">Sunday</option>
           </select>
         </label>
-        <label class="field">
-          <span data-i18n="at">at</span>
-          <input id="time" type="time" step="300">
-        </label>
+        <!-- Two selects rather than <input type="time">: Android's native time dialog
+             clips its buttons in some languages, and pages can't style it. -->
+        <div class="field" role="group" aria-labelledby="at-label">
+          <span id="at-label" data-i18n="at">at</span>
+          <div class="time">
+            <select id="hour" data-i18n-aria-label="hour" aria-label="Hour"></select>
+            <span aria-hidden="true">:</span>
+            <select id="minute" data-i18n-aria-label="minute" aria-label="Minute"></select>
+          </div>
+        </div>
         <button type="button" id="now" class="secondary" data-i18n="now">Now</button>
       </div>
     </form>

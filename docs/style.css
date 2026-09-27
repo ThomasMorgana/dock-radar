@@ -57,8 +57,9 @@ form { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
 .row { display: flex; gap: 0.5rem; align-items: end; flex-wrap: wrap; }
 .field { display: grid; gap: 0.25rem; flex: 1; min-width: 8rem; }
 .field > span, .field > label { font-size: 0.85rem; color: var(--muted); }
-/* On phones the weekday gets its own line, so the time input starts at the left edge:
-   native time pickers open rightwards from the input and ran off screen from mid-row. */
+.time { display: flex; align-items: center; gap: 0.3rem; }
+.time select { flex: 1; }
+/* On phones the weekday gets its own line; the day, time and Now button don't fit on one. */
 @media (max-width: 30rem) { .when > .field:first-child { flex-basis: 100%; } }
 
 .combo { position: relative; flex: 1; min-width: 0; }

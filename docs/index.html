@@ -16,14 +16,18 @@
     </header>
 
     <form id="controls" autocomplete="off">
-      <label class="field station-field">
-        <span>Station</span>
+      <div class="field station-field">
+        <label for="station">Station</label>
         <div class="row">
-          <input id="station" list="station-list" placeholder="Loading stations…" disabled>
+          <div class="combo">
+            <input id="station" role="combobox" aria-autocomplete="list" aria-expanded="false"
+              aria-controls="station-list" autocapitalize="off" autocorrect="off" spellcheck="false"
+              enterkeyhint="done" placeholder="Loading stations…" disabled>
+            <ul id="station-list" role="listbox" aria-label="Stations" hidden></ul>
+          </div>
           <button type="button" id="nearest" title="Use my location">Nearest</button>
         </div>
-        <datalist id="station-list"></datalist>
-      </label>
+      </div>
 
       <div class="row">
         <label class="field">
@@ -50,8 +54,12 @@
 
     <section id="result" hidden>
       <article class="card">
-        <h2 id="station-name"></h2>
+        <div class="card-head">
+          <h2 id="station-name"></h2>
+          <button type="button" id="share" class="secondary small">Share</button>
+        </div>
         <p id="live" class="live"></p>
+        <p id="share-status" class="muted small" role="status"></p>
       </article>
 
       <article class="card">

@@ -175,8 +175,7 @@ async function render() {
 
   const id = ++renderId;
   const weekday = Number($("weekday").value);
-  const time = $("time").value;
-  if (!time) return;
+  const time = getTime();
 
   history.replaceState(null, "", shareUrl(station.id, weekday, time));
   $("share-status").textContent = "";
@@ -245,7 +244,7 @@ async function subscribe(e) {
     email: $("alert-email").value,
     station_id: station.id,
     weekday: Number($("weekday").value),
-    time: $("time").value,
+    time: getTime(),
     timezone: TIMEZONE,
   });
   $("alert-status").textContent = reply.message;
@@ -375,17 +374,35 @@ function selectStation(station) {
   render();
 }
 
+// The departure time is two selects: hours, and minutes in 5-minute steps.
+const pad = (n) => String(n).padStart(2, "0");
+
+function fillTimeOptions() {
+  const options = (values) => values.map((v) => `<option value="${pad(v)}">${pad(v)}</option>`).join("");
+  $("hour").innerHTML = options([...Array(24).keys()]);
+  $("minute").innerHTML = options([...Array(12).keys()].map((i) => i * 5));
+}
+
+const getTime = () => `${$("hour").value}:${$("minute").value}`;
+
+/** Set HH:MM, rounding the minutes down to the 5-minute step. */
+function setTime(time) {
+  const [h, m] = time.split(":").map(Number);
+  $("hour").value = pad(h);
+  $("minute").value = pad(m - (m % 5));
+}
+
 function setNow() {
   const now = nowInNetwork();
   $("weekday").value = String(now.weekday);
-  $("time").value = now.time;
+  setTime(now.time);
 }
 
 async function share() {
   const station = byLabel.get($("station").value);
   if (!station) return;
-  const url = shareUrl(station.id, $("weekday").value, $("time").value);
-  const text = t("shareText", station.name, dayName($("weekday").value), $("time").value);
+  const url = shareUrl(station.id, $("weekday").value, getTime());
+  const text = t("shareText", station.name, dayName($("weekday").value), getTime());
   if (navigator.share) {
     try { await navigator.share({ title: "Dock Radar", text, url }); } catch { /* cancelled */ }
     return;
@@ -443,12 +460,14 @@ async function init() {
   const link = linkParams(); // read before handleEmailLink clears the query string
   translatePage();
   $("lang").addEventListener("click", switchLanguage);
+  fillTimeOptions();
   setNow();
   if (link.weekday) $("weekday").value = link.weekday;
-  if (link.time) $("time").value = link.time;
+  if (link.time) setTime(link.time);
   setUpStationPicker();
   $("weekday").addEventListener("change", render);
-  $("time").addEventListener("change", render);
+  $("hour").addEventListener("change", render);
+  $("minute").addEventListener("change", render);
   $("now").addEventListener("click", () => { setNow(); render(); });
   $("nearest").addEventListener("click", useNearest);
   $("nearby").addEventListener("click", (e) => {

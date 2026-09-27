@@ -44,6 +44,12 @@ main {
   padding: 1.5rem 1rem 3rem;
 }
 
+header { display: flex; justify-content: space-between; align-items: start; gap: 0.75rem; }
+.lang-switch {
+  display: inline-flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+  padding: 0.35rem 0.6rem; font-size: 0.875rem;
+}
+.lang-switch svg { display: block; }
 header h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.02em; }
 .tagline { margin: 0.25rem 0 1.5rem; color: var(--muted); }
 

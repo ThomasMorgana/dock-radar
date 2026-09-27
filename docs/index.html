@@ -4,34 +4,46 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dock Radar</title>
-  <meta name="description" content="Will there be a bike at my station when I leave? How TBM Le Vélo stations in Bordeaux usually look at this time of the week.">
+  <meta name="description" data-i18n-content="description" content="Will there be a bike at my station when I leave? How TBM Le Vélo stations in Bordeaux usually look at this time of the week.">
   <link rel="stylesheet" href="style.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
   <main>
     <header>
-      <h1>Dock Radar</h1>
-      <p class="tagline">Will there be a bike at my station when I leave?</p>
+      <div>
+        <h1>Dock Radar</h1>
+        <p class="tagline" data-i18n="tagline">Will there be a bike at my station when I leave?</p>
+      </div>
+      <button type="button" id="lang" class="secondary lang-switch" data-i18n-title="switchTitle"
+        data-i18n-aria-label="switchTitle" title="Passer en français" aria-label="Passer en français">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        <span data-i18n="switchLabel">FR</span>
+      </button>
     </header>
 
     <form id="controls" autocomplete="off">
       <div class="field station-field">
-        <label for="station">Station</label>
+        <label for="station" data-i18n="station">Station</label>
         <div class="row">
           <div class="combo">
             <input id="station" role="combobox" aria-autocomplete="list" aria-expanded="false"
               aria-controls="station-list" autocapitalize="off" autocorrect="off" spellcheck="false"
-              enterkeyhint="done" placeholder="Loading stations…" disabled>
-            <ul id="station-list" role="listbox" aria-label="Stations" hidden></ul>
+              enterkeyhint="done" data-i18n-placeholder="loadingStations" placeholder="Loading stations…" disabled>
+            <ul id="station-list" role="listbox" data-i18n-aria-label="stations" aria-label="Stations" hidden></ul>
           </div>
-          <button type="button" id="nearest" title="Use my location">Nearest</button>
+          <button type="button" id="nearest" data-i18n="nearest" data-i18n-title="nearestTitle"
+            title="Use my location">Nearest</button>
         </div>
       </div>
 
       <div class="row">
         <label class="field">
-          <span>Leaving on</span>
+          <span data-i18n="leavingOn">Leaving on</span>
           <select id="weekday">
             <option value="1">Monday</option>
             <option value="2">Tuesday</option>
@@ -43,10 +55,10 @@
           </select>
         </label>
         <label class="field">
-          <span>at</span>
+          <span data-i18n="at">at</span>
           <input id="time" type="time" step="300">
         </label>
-        <button type="button" id="now" class="secondary">Now</button>
+        <button type="button" id="now" class="secondary" data-i18n="now">Now</button>
       </div>
     </form>
 
@@ -56,43 +68,46 @@
       <article class="card">
         <div class="card-head">
           <h2 id="station-name"></h2>
-          <button type="button" id="share" class="secondary small">Share</button>
+          <button type="button" id="share" class="secondary small" data-i18n="share">Share</button>
         </div>
         <p id="live" class="live"></p>
         <p id="share-status" class="muted small" role="status"></p>
       </article>
 
       <article class="card">
-        <h3 id="usual-title">Usually at this time</h3>
+        <h3 id="usual-title" data-i18n="usualTitleDefault">Usually at this time</h3>
         <div id="usual"></div>
       </article>
 
       <article class="card" id="nearby-card" hidden>
-        <h3>Nearby stations, same time</h3>
+        <h3 data-i18n="nearbyTitle">Nearby stations, same time</h3>
         <ul id="nearby" class="nearby"></ul>
       </article>
 
       <article class="card">
-        <h3 id="alert-title">Email me the evening before</h3>
+        <h3 id="alert-title" data-i18n="alertTitleDefault">Email me the evening before</h3>
         <form id="alert-form" class="row">
           <label class="field">
-            <span>If this station is usually empty at this time, email</span>
+            <span data-i18n="alertLabel">If this station is usually empty at this time, email</span>
             <input id="alert-email" type="email" required placeholder="you@example.com" autocomplete="email">
           </label>
-          <button type="submit">Alert me</button>
+          <button type="submit" data-i18n="alertButton">Alert me</button>
         </form>
-        <p id="alert-status" class="muted small" role="status">
+        <p id="alert-status" class="muted small" role="status" data-i18n="alertHint">
           You'll get one email to confirm. Every alert has a one-click unsubscribe link.
         </p>
       </article>
     </section>
 
     <footer>
-      <p>
+      <p data-i18n-html="footerData">
         Station data: <strong>Bordeaux Métropole / TBM</strong>, open data under the Licence Ouverte.
         Dock Radar records availability every 5 minutes, and the history grows every week.
       </p>
-      <p><a href="https://github.com/ThomasMorgana/dock-radar">Source on GitHub</a> · Built with Supabase</p>
+      <p>
+        <a href="https://github.com/ThomasMorgana/dock-radar" data-i18n="footerSource">Source on GitHub</a>
+        · <span data-i18n="builtWith">Built with Supabase</span>
+      </p>
     </footer>
   </main>
 </body>

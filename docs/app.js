@@ -3,17 +3,19 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { NEARBY_RADIUS_M, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, TIMEZONE } from "./config.js";
+import { getLang, num, setLang, t } from "./i18n.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const STALE_AFTER_MIN = 20;
+const dayName = (weekday) => t("days")[weekday - 1];
 
 const $ = (id) => document.getElementById(id);
 
 let stations = [];        // rows of the station_latest view
 let byLabel = new Map();  // station picker label -> station
 let renderId = 0;         // ignores results of outdated requests
+let shown = null;         // the result on screen, kept to redraw it in another language
 
 // ---------------------------------------------------------------------------
 // Data
@@ -49,10 +51,11 @@ async function profile(stationId, weekday, time) {
 function nowInNetwork() {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-GB", {
-      timeZone: TIMEZONE, weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      timeZone: TIMEZONE, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
     }).formatToParts(new Date()).map((p) => [p.type, p.value]),
   );
-  return { weekday: DAYS.indexOf(parts.weekday) + 1, time: `${parts.hour}:${parts.minute}` };
+  const weekday = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(parts.weekday) + 1;
+  return { weekday, time: `${parts.hour}:${parts.minute}` };
 }
 
 function minusMinutes(time, minutes) {
@@ -74,8 +77,7 @@ function localTime(iso) {
   return new Date(iso).toLocaleTimeString("en-GB", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit" });
 }
 
-const hhmm = (t) => t.slice(0, 5);
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const hhmm = (time) => time.slice(0, 5);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -84,9 +86,8 @@ function escapeHtml(text) {
 function verdict(p) {
   if (!p || p.samples === 0) return null;
   const empty = Number(p.pct_empty);
-  if (empty < 10) return { level: "good", text: "You'll almost always find a bike." };
-  if (empty < 30) return { level: "ok", text: "Usually fine, sometimes empty." };
-  return { level: "bad", text: "Often empty. Leave earlier or try a nearby station." };
+  const level = empty < 10 ? "good" : empty < 30 ? "ok" : "bad";
+  return { level, text: t(level) };
 }
 
 function remember(stationId) {
@@ -120,43 +121,33 @@ function linkParams() {
 // ---------------------------------------------------------------------------
 
 function renderLive(s) {
-  if (!s.observed_at) return "No live data yet.";
-  if (!s.is_renting) return `<strong>Closed for rentals</strong> · as of ${localTime(s.observed_at)}`;
+  if (!s.observed_at) return t("noLive");
+  if (!s.is_renting) return t("closed", localTime(s.observed_at));
 
   const ageMin = Math.round((Date.now() - new Date(s.observed_at)) / 60_000);
-  const ebikes = s.ebikes_available ? ` (${s.ebikes_available} electric)` : "";
-  const stale = ageMin > STALE_AFTER_MIN
-    ? `<br><span class="warn">This is ${ageMin} minutes old. Collection may be paused.</span>`
-    : "";
-  return `<span class="big">${s.bikes_available}</span> ${s.bikes_available === 1 ? "bike" : "bikes"}${ebikes}
-    · ${plural(s.docks_available, "free dock")} · as of ${localTime(s.observed_at)}${stale}`;
+  const ebikes = s.ebikes_available ? t("ebikes", s.ebikes_available) : "";
+  const stale = ageMin > STALE_AFTER_MIN ? `<br><span class="warn">${t("stale", ageMin)}</span>` : "";
+  return `<span class="big">${s.bikes_available}</span> ${t("bikes", s.bikes_available)}${ebikes}
+    · ${t("freeDocks", s.docks_available)} · ${t("asOf", localTime(s.observed_at))}${stale}`;
 }
 
 function renderUsual(p, earlier, weekday) {
-  const day = DAYS[weekday - 1];
-  if (p.samples === 0) {
-    return `<p class="muted">No history for ${day}s at ${hhmm(p.slot_start)} yet.
-      Dock Radar has been collecting since September 2026, and this slot will fill in over the coming weeks.</p>`;
-  }
+  const day = dayName(weekday);
+  if (p.samples === 0) return `<p class="muted">${t("noHistory", day, hhmm(p.slot_start))}</p>`;
 
   const v = verdict(p);
-  const thin = p.days_observed < 3
-    ? `<p class="muted small">Only ${plural(p.days_observed, day)} of history so far, so treat this as a first hint.</p>`
-    : "";
+  const thin = p.days_observed < 3 ? `<p class="muted small">${t("thin", day, p.days_observed)}</p>` : "";
 
   let tip = "";
   if (earlier && earlier.samples > 0 && Number(earlier.pct_empty) + 15 <= Number(p.pct_empty)) {
-    tip = `<p class="tip">Leaving 15 minutes earlier looks better: empty ${earlier.pct_empty}% of the time
-      at ${hhmm(earlier.slot_start)}.</p>`;
+    tip = `<p class="tip">${t("earlier", num(earlier.pct_empty), hhmm(earlier.slot_start))}</p>`;
   }
 
   return `
     <p class="verdict ${v.level}">${v.text}</p>
     <div class="meter" aria-hidden="true"><span style="width:${p.pct_empty}%"></span></div>
-    <p><strong>Empty ${p.pct_empty}% of the time</strong> · ${p.avg_bikes} bikes on average
-      · full ${p.pct_full}% of the time</p>
-    <p class="muted small">${day}s ${hhmm(p.slot_start)}–${hhmm(p.slot_end)},
-      based on ${plural(p.days_observed, day)} (${plural(p.samples, "reading")}).</p>
+    <p>${t("stats", num(p.pct_empty), num(p.avg_bikes), num(p.pct_full), Number(p.avg_bikes))}</p>
+    <p class="muted small">${t("basis", day, hhmm(p.slot_start), hhmm(p.slot_end), p.days_observed, p.samples)}</p>
     ${thin}${tip}`;
 }
 
@@ -167,9 +158,9 @@ function renderNearby(items, current) {
   const suggestBest = best && current.samples > 0 && Number(best.profile.pct_empty) < Number(current.pct_empty);
 
   return items.map(({ station: s, dist, profile: p }) => {
-    const usual = p.samples > 0 ? `usually empty ${p.pct_empty}%` : "no history yet";
-    const live = s.observed_at ? plural(s.bikes_available, "bike") + " now" : "no live data";
-    const tag = suggestBest && s.id === best.station.id ? `<span class="badge">Better bet</span>` : "";
+    const usual = p.samples > 0 ? t("usuallyEmpty", num(p.pct_empty)) : t("noHistoryYet");
+    const live = s.observed_at ? t("bikesNow", s.bikes_available) : t("noLiveData");
+    const tag = suggestBest && s.id === best.station.id ? `<span class="badge">${t("betterBet")}</span>` : "";
     return `<li>
       <button type="button" data-station="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button> ${tag}
       <span class="muted small">${Math.round(dist)} m · ${live} · ${usual}</span>
@@ -189,7 +180,7 @@ async function render() {
 
   history.replaceState(null, "", shareUrl(station.id, weekday, time));
   $("share-status").textContent = "";
-  $("status").textContent = "Loading…";
+  $("status").textContent = t("loading");
   const earlierTime = minusMinutes(time, 15);
   const nearby = stations
     .filter((s) => s.id !== station.id)
@@ -206,23 +197,29 @@ async function render() {
     ]);
     if (id !== renderId) return; // the user changed something meanwhile
 
-    $("station-name").textContent = station.name;
-    $("live").innerHTML = renderLive(station);
-    $("usual-title").textContent = `Usually on ${DAYS[weekday - 1]}s around ${time}`;
-    $("usual").innerHTML = renderUsual(current, earlier, weekday);
-    $("alert-title").textContent = `Email me the evening before each ${DAYS[weekday - 1]}`;
-
     nearby.forEach((n, i) => (n.profile = nearbyProfiles[i]));
-    $("nearby").innerHTML = renderNearby(nearby, current);
-    $("nearby-card").hidden = nearby.length === 0;
-
-    $("result").hidden = false;
+    shown = { station, weekday, time, current, earlier, nearby };
+    paint();
     $("status").textContent = "";
   } catch (err) {
     if (id !== renderId) return;
     console.error(err);
-    $("status").textContent = "Couldn't load data. Please try again in a moment.";
+    $("status").textContent = t("loadError");
   }
+}
+
+/** Draws the last loaded result. Also called on a language switch, without refetching. */
+function paint() {
+  if (!shown) return;
+  const { station, weekday, time, current, earlier, nearby } = shown;
+  $("station-name").textContent = station.name;
+  $("live").innerHTML = renderLive(station);
+  $("usual-title").textContent = t("usualTitle", dayName(weekday), time);
+  $("usual").innerHTML = renderUsual(current, earlier, weekday);
+  $("alert-title").textContent = t("alertTitle", dayName(weekday));
+  $("nearby").innerHTML = renderNearby(nearby, current);
+  $("nearby-card").hidden = nearby.length === 0;
+  $("result").hidden = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,7 +230,7 @@ async function callAlerts(body) {
   const { data, error } = await supabase.functions.invoke("alert-subscribe", { body });
   if (!error) return data;
   const reply = await error.context?.json?.().catch(() => null);
-  return reply ?? { ok: false, message: "Something went wrong. Please try again later." };
+  return reply ?? { ok: false, message: t("genericError") };
 }
 
 async function subscribe(e) {
@@ -242,7 +239,7 @@ async function subscribe(e) {
   if (!station) return;
   const button = $("alert-form").querySelector("button");
   button.disabled = true;
-  $("alert-status").textContent = "Sending…";
+  $("alert-status").textContent = t("sending");
   const reply = await callAlerts({
     action: "subscribe",
     email: $("alert-email").value,
@@ -261,7 +258,7 @@ async function handleEmailLink() {
   const action = ["confirm", "unsubscribe"].find((a) => params.has(a));
   if (!action) return;
   history.replaceState(null, "", location.pathname); // don't re-run it on refresh
-  $("status").textContent = action === "confirm" ? "Confirming your alert…" : "Unsubscribing…";
+  $("status").textContent = t(action === "confirm" ? "confirming" : "unsubscribing");
   const reply = await callAlerts({ action, token: params.get(action) });
   $("status").textContent = reply.message;
 }
@@ -296,7 +293,7 @@ function openList(query) {
         li.setAttribute("role", "option");
         return li;
       })
-    : [Object.assign(document.createElement("li"), { className: "empty", textContent: "No matching station" })]));
+    : [Object.assign(document.createElement("li"), { className: "empty", textContent: t("noMatch") })]));
   list.scrollTop = 0;
   list.hidden = false;
   $("station").setAttribute("aria-expanded", "true");
@@ -388,14 +385,14 @@ async function share() {
   const station = byLabel.get($("station").value);
   if (!station) return;
   const url = shareUrl(station.id, $("weekday").value, $("time").value);
-  const text = `${station.name}: ${DAYS[$("weekday").value - 1]}s around ${$("time").value}`;
+  const text = t("shareText", station.name, dayName($("weekday").value), $("time").value);
   if (navigator.share) {
     try { await navigator.share({ title: "Dock Radar", text, url }); } catch { /* cancelled */ }
     return;
   }
   try {
     await navigator.clipboard.writeText(url);
-    $("share-status").textContent = "Link copied.";
+    $("share-status").textContent = t("linkCopied");
   } catch {
     $("share-status").textContent = url;
   }
@@ -403,23 +400,49 @@ async function share() {
 
 function useNearest() {
   if (!navigator.geolocation) {
-    $("status").textContent = "Your browser doesn't share its location.";
+    $("status").textContent = t("noGeolocation");
     return;
   }
-  $("status").textContent = "Finding the nearest station…";
+  $("status").textContent = t("locating");
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
       const here = { lat: coords.latitude, lon: coords.longitude };
       const nearest = stations.reduce((a, b) => (distanceM(here, a) <= distanceM(here, b) ? a : b));
       selectStation(nearest);
     },
-    () => ($("status").textContent = "Location unavailable. Pick a station from the list."),
+    () => ($("status").textContent = t("locationError")),
     { timeout: 10_000 },
   );
 }
 
+// ---------------------------------------------------------------------------
+// Language
+// ---------------------------------------------------------------------------
+
+/** Fill every element tagged with data-i18n* from the current language. */
+function translatePage() {
+  document.documentElement.lang = getLang();
+  for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-html]")) el.innerHTML = t(el.dataset.i18nHtml);
+  const attributes = { i18nContent: "content", i18nPlaceholder: "placeholder", i18nTitle: "title", i18nAriaLabel: "aria-label" };
+  for (const [key, attribute] of Object.entries(attributes)) {
+    const selector = `[data-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`;
+    for (const el of document.querySelectorAll(selector)) el.setAttribute(attribute, t(el.dataset[key]));
+  }
+  $("weekday").querySelectorAll("option").forEach((option, i) => (option.textContent = t("days")[i]));
+}
+
+function switchLanguage() {
+  setLang(getLang() === "fr" ? "en" : "fr");
+  translatePage();
+  if (!$("station-list").hidden) openList($("station").value);
+  paint();
+}
+
 async function init() {
   const link = linkParams(); // read before handleEmailLink clears the query string
+  translatePage();
+  $("lang").addEventListener("click", switchLanguage);
   setNow();
   if (link.weekday) $("weekday").value = link.weekday;
   if (link.time) $("time").value = link.time;
@@ -441,17 +464,18 @@ async function init() {
     await loadStations();
   } catch (err) {
     console.error(err);
-    $("status").textContent = "Couldn't load stations. Please refresh the page.";
+    $("status").textContent = t("stationsError");
     return;
   }
   $("station").disabled = false;
-  $("station").placeholder = "Type a station name";
+  $("station").dataset.i18nPlaceholder = "typeStation";
+  $("station").placeholder = t("typeStation");
 
   // A shared link wins over the station remembered on this device.
   const linked = stations.find((s) => s.id === link.stationId);
   const saved = linked ?? stations.find((s) => s.id === remembered());
   if (saved) selectStation(saved);
-  else if (link.stationId) $("status").textContent = "The station in this link doesn't exist anymore. Pick one from the list.";
+  else if (link.stationId) $("status").textContent = t("unknownStation");
 }
 
 init();

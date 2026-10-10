@@ -38,6 +38,12 @@ const STRINGS = {
       "Dock Radar records availability every 5 minutes, and the history grows every week.",
     footerSource: "Source on GitHub",
     builtWith: "Built with Supabase",
+    privacyChoices: "Privacy choices",
+    consentLabel: "Privacy",
+    consentText: "Dock Radar uses PostHog to see how the page is used, including anonymous screen recordings. " +
+      "PostHog stores nothing on your device unless you accept.",
+    consentAccept: "Accept",
+    consentDecline: "Decline",
 
     // Live count
     noLive: "No live data yet.",
@@ -116,6 +122,12 @@ const STRINGS = {
       "Dock Radar relève la disponibilité toutes les 5 minutes, et l'historique s'enrichit chaque semaine.",
     footerSource: "Code source sur GitHub",
     builtWith: "Construit avec Supabase",
+    privacyChoices: "Choix de confidentialité",
+    consentLabel: "Confidentialité",
+    consentText: "Dock Radar utilise PostHog pour voir comment la page est utilisée, y compris des enregistrements " +
+      "d'écran anonymes. PostHog ne stocke rien sur votre appareil sauf si vous acceptez.",
+    consentAccept: "Accepter",
+    consentDecline: "Refuser",
 
     noLive: "Pas encore de données en direct.",
     closed: (time) => `<strong>Location fermée</strong> · à ${time}`,

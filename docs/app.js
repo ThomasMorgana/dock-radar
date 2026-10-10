@@ -4,6 +4,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { NEARBY_RADIUS_M, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, TIMEZONE } from "./config.js";
 import { getLang, num, setLang, t } from "./i18n.js";
+import { consentStatus, initAnalytics, register, setConsent } from "./analytics.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -454,11 +455,31 @@ function switchLanguage() {
   translatePage();
   if (!$("station-list").hidden) openList($("station").value);
   paint();
+  register({ lang: getLang() });
+}
+
+// ---------------------------------------------------------------------------
+// Analytics consent (only when a PostHog token is configured)
+// ---------------------------------------------------------------------------
+
+function decideConsent(accepted) {
+  setConsent(accepted);
+  $("consent").hidden = true;
+}
+
+async function setUpAnalytics() {
+  if (!(await initAnalytics())) return; // off: no banner, no footer link
+  $("consent-accept").addEventListener("click", () => decideConsent(true));
+  $("consent-decline").addEventListener("click", () => decideConsent(false));
+  $("privacy").addEventListener("click", () => ($("consent").hidden = false));
+  $("privacy-choices").hidden = false;
+  $("consent").hidden = consentStatus() !== "pending";
 }
 
 async function init() {
   const link = linkParams(); // read before handleEmailLink clears the query string
   translatePage();
+  setUpAnalytics();
   $("lang").addEventListener("click", switchLanguage);
   fillTimeOptions();
   setNow();

@@ -41,8 +41,16 @@ function withPosthog(fn) {
   ready.then((ph) => ph && fn(ph)).catch((err) => console.warn("Analytics error:", err));
 }
 
+// Until the visitor chooses, posthog-js drops events (cookieless_mode "on_reject"). Without this,
+// a first visit from a shared link would lose its station_selected and profile_viewed.
+// Kept in memory only, and sent with their original time once the visitor accepts or declines.
+const held = [];
+
 export function track(event, props) {
-  withPosthog((ph) => ph.capture(event, props));
+  withPosthog((ph) => {
+    if (ph.get_explicit_consent_status() === "pending") held.push([event, props, new Date()]);
+    else ph.capture(event, props);
+  });
 }
 
 export function trackError(err, props) {
@@ -80,5 +88,9 @@ export function consentStatus() {
 
 /** Accept: cookies, replay and surveys. Decline: anonymous cookieless events only. */
 export function setConsent(accepted) {
-  withPosthog((ph) => (accepted ? ph.opt_in_capturing() : ph.opt_out_capturing()));
+  withPosthog((ph) => {
+    if (accepted) ph.opt_in_capturing();
+    else ph.opt_out_capturing();
+    for (const [event, props, timestamp] of held.splice(0)) ph.capture(event, props, { timestamp });
+  });
 }

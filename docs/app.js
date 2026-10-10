@@ -4,7 +4,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { NEARBY_RADIUS_M, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, TIMEZONE } from "./config.js";
 import { getLang, num, setLang, t } from "./i18n.js";
-import { consentStatus, initAnalytics, register, setConsent } from "./analytics.js";
+import { consentStatus, initAnalytics, register, setConsent, track } from "./analytics.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -91,6 +91,20 @@ function verdict(p) {
   return { level, text: t(level) };
 }
 
+/** True when leaving 15 minutes earlier is at least 15 points less likely to find the station empty. */
+function earlierIsBetter(current, earlier) {
+  return Boolean(earlier && earlier.samples > 0 && current.samples > 0
+    && Number(earlier.pct_empty) + 15 <= Number(current.pct_empty));
+}
+
+/** The least-empty nearby station, when it beats the current one. Otherwise null. */
+function betterBet(nearby, current) {
+  const best = nearby
+    .filter((n) => n.profile.samples > 0)
+    .sort((a, b) => a.profile.pct_empty - b.profile.pct_empty)[0];
+  return best && current.samples > 0 && Number(best.profile.pct_empty) < Number(current.pct_empty) ? best : null;
+}
+
 function remember(stationId) {
   try { localStorage.setItem("dock-radar:station", stationId); } catch { /* storage unavailable */ }
 }
@@ -139,10 +153,9 @@ function renderUsual(p, earlier, weekday) {
   const v = verdict(p);
   const thin = p.days_observed < 3 ? `<p class="muted small">${t("thin", day, p.days_observed)}</p>` : "";
 
-  let tip = "";
-  if (earlier && earlier.samples > 0 && Number(earlier.pct_empty) + 15 <= Number(p.pct_empty)) {
-    tip = `<p class="tip">${t("earlier", num(earlier.pct_empty), hhmm(earlier.slot_start))}</p>`;
-  }
+  const tip = earlierIsBetter(p, earlier)
+    ? `<p class="tip">${t("earlier", num(earlier.pct_empty), hhmm(earlier.slot_start))}</p>`
+    : "";
 
   return `
     <p class="verdict ${v.level}">${v.text}</p>
@@ -153,15 +166,12 @@ function renderUsual(p, earlier, weekday) {
 }
 
 function renderNearby(items, current) {
-  const best = items
-    .filter((i) => i.profile.samples > 0)
-    .sort((a, b) => a.profile.pct_empty - b.profile.pct_empty)[0];
-  const suggestBest = best && current.samples > 0 && Number(best.profile.pct_empty) < Number(current.pct_empty);
+  const best = betterBet(items, current);
 
   return items.map(({ station: s, dist, profile: p }) => {
     const usual = p.samples > 0 ? t("usuallyEmpty", num(p.pct_empty)) : t("noHistoryYet");
     const live = s.observed_at ? t("bikesNow", s.bikes_available) : t("noLiveData");
-    const tag = suggestBest && s.id === best.station.id ? `<span class="badge">${t("betterBet")}</span>` : "";
+    const tag = best && s.id === best.station.id ? `<span class="badge">${t("betterBet")}</span>` : "";
     return `<li>
       <button type="button" data-station="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button> ${tag}
       <span class="muted small">${Math.round(dist)} m · ${live} · ${usual}</span>
@@ -201,11 +211,38 @@ async function render() {
     shown = { station, weekday, time, current, earlier, nearby };
     paint();
     $("status").textContent = "";
+    track("profile_viewed", profileViewProps(shown)); // here, not in paint(): a language switch isn't a new view
   } catch (err) {
     if (id !== renderId) return;
     console.error(err);
     $("status").textContent = t("loadError");
   }
+}
+
+/** True when the page shows the current 5-minute step in the network's time zone. */
+function isNow(weekday, time) {
+  const now = nowInNetwork();
+  const [h, m] = now.time.split(":").map(Number);
+  return now.weekday === weekday && time === `${pad(h)}:${pad(m - (m % 5))}`;
+}
+
+function profileViewProps({ station, weekday, time, current, earlier, nearby }) {
+  const hasHistory = current.samples > 0;
+  return {
+    station_id: station.id,
+    station_name: station.name,
+    weekday,
+    time,
+    slot_start: hhmm(current.slot_start),
+    is_now: isNow(weekday, time),
+    samples: current.samples,
+    days_observed: current.days_observed,
+    pct_empty: hasHistory ? Number(current.pct_empty) : null,
+    verdict_level: verdict(current)?.level ?? "none",
+    has_earlier_tip: earlierIsBetter(current, earlier),
+    nearby_count: nearby.length,
+    has_better_bet: betterBet(nearby, current) !== null,
+  };
 }
 
 /** Draws the last loaded result. Also called on a language switch, without refetching. */
@@ -250,6 +287,8 @@ async function subscribe(e) {
   });
   $("alert-status").textContent = reply.message;
   button.disabled = false;
+  // Never the email address.
+  track("alert_subscribe_submitted", { station_id: station.id, weekday: Number($("weekday").value), time: getTime(), ok: Boolean(reply.ok) });
 }
 
 /** Confirm and unsubscribe links in emails land here: ?confirm=<token> or ?unsubscribe=<token>. */
@@ -257,10 +296,13 @@ async function handleEmailLink() {
   const params = new URLSearchParams(location.search);
   const action = ["confirm", "unsubscribe"].find((a) => params.has(a));
   if (!action) return;
-  history.replaceState(null, "", location.pathname); // don't re-run it on refresh
+  // Don't re-run it on refresh. This also runs before posthog-js has loaded, so the token never
+  // reaches PostHog in the $pageview URL.
+  history.replaceState(null, "", location.pathname);
   $("status").textContent = t(action === "confirm" ? "confirming" : "unsubscribing");
   const reply = await callAlerts({ action, token: params.get(action) });
   $("status").textContent = reply.message;
+  track("alert_link_opened", { action, ok: Boolean(reply.ok) });
 }
 
 // ---------------------------------------------------------------------------
@@ -319,6 +361,7 @@ function highlight(index) {
 function pick(label) {
   $("station").value = label;
   closeList();
+  stationSelected(byLabel.get(label), "picker");
   render();
 }
 
@@ -369,10 +412,30 @@ function setUpStationPicker() {
 // Wiring
 // ---------------------------------------------------------------------------
 
-function selectStation(station) {
+/** source: picker, nearest, nearby, link or remembered. */
+function stationSelected(station, source) {
+  track("station_selected", { station_id: station.id, station_name: station.name, source });
+}
+
+function selectStation(station, source) {
   const label = [...byLabel].find(([, s]) => s.id === station.id)?.[0];
   if (label) $("station").value = label;
+  stationSelected(station, source);
   render();
+}
+
+function onNearbyClick(e) {
+  const id = e.target.closest("button[data-station]")?.dataset.station;
+  const station = stations.find((s) => s.id === id);
+  if (!station) return;
+  const item = shown.nearby.find((n) => n.station.id === id);
+  track("nearby_station_clicked", {
+    from_station_id: shown.station.id,
+    to_station_id: id,
+    was_better_bet: betterBet(shown.nearby, shown.current)?.station.id === id,
+    distance_m: Math.round(item.dist),
+  });
+  selectStation(station, "nearby");
 }
 
 // The departure time is two selects: hours, and minutes in 5-minute steps.
@@ -405,30 +468,40 @@ async function share() {
   const url = shareUrl(station.id, $("weekday").value, getTime());
   const text = t("shareText", station.name, dayName($("weekday").value), getTime());
   if (navigator.share) {
+    track("share_clicked", { method: "native" });
     try { await navigator.share({ title: "Dock Radar", text, url }); } catch { /* cancelled */ }
     return;
   }
   try {
     await navigator.clipboard.writeText(url);
     $("share-status").textContent = t("linkCopied");
+    track("share_clicked", { method: "clipboard" });
   } catch {
     $("share-status").textContent = url;
+    track("share_clicked", { method: "shown" });
   }
 }
 
 function useNearest() {
   if (!navigator.geolocation) {
     $("status").textContent = t("noGeolocation");
+    track("nearest_used", { outcome: "unsupported" });
     return;
   }
   $("status").textContent = t("locating");
+  // Only the outcome is tracked, never the position.
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
       const here = { lat: coords.latitude, lon: coords.longitude };
       const nearest = stations.reduce((a, b) => (distanceM(here, a) <= distanceM(here, b) ? a : b));
-      selectStation(nearest);
+      track("nearest_used", { outcome: "found" });
+      selectStation(nearest, "nearest");
     },
-    () => ($("status").textContent = t("locationError")),
+    (err) => {
+      $("status").textContent = t("locationError");
+      // "error" covers a timeout or no fix, which aren't the visitor saying no.
+      track("nearest_used", { outcome: err.code === err.PERMISSION_DENIED ? "denied" : "error" });
+    },
     { timeout: 10_000 },
   );
 }
@@ -456,6 +529,7 @@ function switchLanguage() {
   if (!$("station-list").hidden) openList($("station").value);
   paint();
   register({ lang: getLang() });
+  track("language_switched", { to: getLang() });
 }
 
 // ---------------------------------------------------------------------------
@@ -486,16 +560,12 @@ async function init() {
   if (link.weekday) $("weekday").value = link.weekday;
   if (link.time) setTime(link.time);
   setUpStationPicker();
-  $("weekday").addEventListener("change", render);
-  $("hour").addEventListener("change", render);
-  $("minute").addEventListener("change", render);
-  $("now").addEventListener("click", () => { setNow(); render(); });
+  for (const field of ["weekday", "hour", "minute"]) {
+    $(field).addEventListener("change", () => { track("time_changed", { field }); render(); });
+  }
+  $("now").addEventListener("click", () => { setNow(); track("time_changed", { field: "now" }); render(); });
   $("nearest").addEventListener("click", useNearest);
-  $("nearby").addEventListener("click", (e) => {
-    const id = e.target.closest("button[data-station]")?.dataset.station;
-    const station = stations.find((s) => s.id === id);
-    if (station) selectStation(station);
-  });
+  $("nearby").addEventListener("click", onNearbyClick);
   $("share").addEventListener("click", share);
   $("alert-form").addEventListener("submit", subscribe);
   handleEmailLink();
@@ -514,7 +584,7 @@ async function init() {
   // A shared link wins over the station remembered on this device.
   const linked = stations.find((s) => s.id === link.stationId);
   const saved = linked ?? stations.find((s) => s.id === remembered());
-  if (saved) selectStation(saved);
+  if (saved) selectStation(saved, linked ? "link" : "remembered");
   else if (link.stationId) $("status").textContent = t("unknownStation");
 }
 

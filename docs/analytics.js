@@ -72,10 +72,16 @@ export function register(props) {
   withPosthog((ph) => ph.register(props));
 }
 
+// Flags read while consent is pending. posthog-js drops their $feature_flag_called (the experiment
+// exposure) but still marks it as reported, so it would never be counted. Reported after the choice instead.
+const unreported = new Set();
+
 /** The flag's variant, or "control" when analytics is off or flags haven't arrived yet. */
 export function flag(key) {
   try {
-    const value = posthog?.getFeatureFlag(key);
+    const pending = posthog?.get_explicit_consent_status() === "pending";
+    if (pending) unreported.add(key);
+    const value = posthog?.getFeatureFlag(key, { send_event: !pending });
     return typeof value === "string" ? value : "control";
   } catch {
     return "control";
@@ -101,6 +107,8 @@ export function setConsent(accepted) {
   withPosthog((ph) => {
     if (accepted) ph.opt_in_capturing();
     else ph.opt_out_capturing();
+    for (const key of unreported) ph.getFeatureFlag(key); // sends the exposure now
+    unreported.clear();
     for (const send of held.splice(0)) send(ph);
   });
 }

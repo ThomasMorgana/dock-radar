@@ -4,7 +4,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { NEARBY_RADIUS_M, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, TIMEZONE } from "./config.js";
 import { getLang, num, setLang, t } from "./i18n.js";
-import { consentStatus, initAnalytics, register, setConsent, track, trackError } from "./analytics.js";
+import { consentStatus, flag, initAnalytics, onFlags, register, setConsent, track, trackError } from "./analytics.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -103,6 +103,21 @@ function betterBet(nearby, current) {
     .filter((n) => n.profile.samples > 0)
     .sort((a, b) => a.profile.pct_empty - b.profile.pct_empty)[0];
   return best && current.samples > 0 && Number(best.profile.pct_empty) < Number(current.pct_empty) ? best : null;
+}
+
+/** The one thing to do, for the "advice" headline. null without history. */
+function advice(current, earlier, nearby) {
+  if (current.samples === 0) return null;
+  if (earlierIsBetter(current, earlier)) return t("adviceEarlier", hhmm(earlier.slot_start));
+  const best = betterBet(nearby, current);
+  if (best) return t("adviceNearby", escapeHtml(best.station.name), num(best.profile.pct_empty));
+  return verdict(current).level === "good" ? t("adviceGo") : t("adviceEarly");
+}
+
+// Experiment "profile-headline": "advice" leads with what to do, "control" is the page as it was.
+// Read only when there's history, so an exposure is only counted when the difference is visible.
+function headlineVariant(current) {
+  return current.samples > 0 ? flag("profile-headline") : "none";
 }
 
 function remember(stationId) {
@@ -243,6 +258,7 @@ function profileViewProps({ station, weekday, time, current, earlier, nearby }) 
     has_earlier_tip: earlierIsBetter(current, earlier),
     nearby_count: nearby.length,
     has_better_bet: betterBet(nearby, current) !== null,
+    headline_variant: headlineVariant(current),
   };
 }
 
@@ -253,7 +269,10 @@ function paint() {
   $("station-name").textContent = station.name;
   $("live").innerHTML = renderLive(station);
   $("usual-title").textContent = t("usualTitle", dayName(weekday), time);
-  $("usual").innerHTML = renderUsual(current, earlier, weekday);
+  const headline = headlineVariant(current) === "advice"
+    ? `<p class="advice">${advice(current, earlier, nearby)}</p>`
+    : "";
+  $("usual").innerHTML = headline + renderUsual(current, earlier, weekday);
   $("alert-title").textContent = t("alertTitle", dayName(weekday));
   $("nearby").innerHTML = renderNearby(nearby, current);
   $("nearby-card").hidden = nearby.length === 0;
@@ -562,6 +581,7 @@ async function init() {
   const link = linkParams(); // read before handleEmailLink clears the query string
   translatePage();
   setUpAnalytics();
+  onFlags(paint); // flags can arrive after the first paint: redraw with the right headline
   $("lang").addEventListener("click", switchLanguage);
   fillTimeOptions();
   setNow();

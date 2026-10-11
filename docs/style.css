@@ -113,6 +113,8 @@ button.secondary { background: var(--card); color: var(--text); border-color: va
 .live .big { font-size: 2rem; font-weight: 700; line-height: 1; }
 .warn { color: var(--ok); font-size: 0.9rem; }
 
+.advice { font-weight: 700; font-size: 1.2rem; line-height: 1.35; }
+.advice + .verdict { font-size: 1rem; }
 .verdict { font-weight: 700; font-size: 1.1rem; }
 .verdict.good { color: var(--good); }
 .verdict.ok { color: var(--ok); }

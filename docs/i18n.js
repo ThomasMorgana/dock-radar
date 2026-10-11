@@ -68,6 +68,12 @@ const STRINGS = {
     thin: (day, days) => `Only ${days} ${s(days, day)} of history so far, so treat this as a first hint.`,
     earlier: (empty, time) => `Leaving 15 minutes earlier looks better: empty ${empty}% of the time at ${time}.`,
 
+    // Action-first headline (experiment variant "advice")
+    adviceEarlier: (time) => `Leave by ${time}.`,
+    adviceNearby: (name, pct) => `Head to ${name} instead, usually empty ${pct}% at this time.`,
+    adviceGo: "Go ahead, there's almost always a bike.",
+    adviceEarly: "Leave a few minutes early, this station is often empty.",
+
     // Nearby
     usuallyEmpty: (pct) => `usually empty ${pct}%`,
     noHistoryYet: "no history yet",
@@ -149,6 +155,11 @@ const STRINGS = {
       `Le ${day} de ${start} à ${end}, d'après ${days} ${sFr(days, day)} (${samples} ${sFr(samples, "relevé")}).`,
     thin: (day, days) => `Seulement ${days} ${sFr(days, day)} d'historique pour l'instant${NB}: c'est une première indication.`,
     earlier: (empty, time) => `Partir 15 minutes plus tôt semble plus sûr${NB}: vide ${empty}${NB}% du temps à ${time}.`,
+
+    adviceEarlier: (time) => `Partez au plus tard à ${time}.`,
+    adviceNearby: (name, pct) => `Allez plutôt à ${name}, vide ${pct}${NB}% du temps à cette heure.`,
+    adviceGo: "Allez-y, il y a presque toujours un vélo.",
+    adviceEarly: "Partez quelques minutes plus tôt, cette station est souvent vide.",
 
     usuallyEmpty: (pct) => `vide ${pct}${NB}% du temps`,
     noHistoryYet: "pas encore d'historique",

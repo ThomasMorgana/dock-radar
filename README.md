@@ -19,9 +19,15 @@ The first feed is TBM Le Vélo in Bordeaux.
 
 ```
 GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, station_snapshots)
-                 ▲ every 5 min                        │
-             pg_cron + pg_net                          ▼
-                                     station_profile() ──► static page (supabase-js)
+                 ▲ every 5 min      │                 │               │ nightly rollup
+             pg_cron + pg_net       │                 ▼               ▼
+                                    │        station_profile()  station_hourly
+                                    │                 │               │
+                                    │                 ▼               │
+                                    │      static page (supabase-js)  │
+                                    │                 ▼               │
+                                    └──► PostHog (optional) ◄─────────┘
+                                 server events · page events · warehouse sync
 ```
 
 - **Postgres:** `stations` and `station_snapshots` tables, with RLS set to public read and no public write
@@ -33,6 +39,10 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
   curl -X POST "$SUPABASE_URL/rest/v1/rpc/station_profile" -H "apikey: $PUBLISHABLE_KEY" \
     -H "Content-Type: application/json" -d '{"p_station_id": "1", "p_weekday": 1, "p_time": "08:10"}'
   ```
+- **Hourly rollup:** [`station_hourly`](supabase/migrations/20261011160000_add_station_hourly.sql) keeps one row per station, local date and hour
+  (samples, how many were empty or full, average bikes), about 13 times fewer rows than `station_snapshots`. The `rollup-station-hourly`
+  cron job fills in the previous local day every night at 03:47 UTC, and the migration backfills past days. Public read, like the other open-data
+  tables, and covered by [pgTAP tests](supabase/tests/station_hourly.test.sql). It's what the PostHog data warehouse syncs (see below).
 - **Front end** ([`docs/`](docs)): one static page, plain HTML and supabase-js, served by GitHub Pages. It reads the `station_latest` view and calls `station_profile`.
 - **Email alerts** (optional): "email me the evening before if my station is usually empty at my departure time", sent with [Resend](https://resend.com).
   The page calls the [`alert-subscribe`](supabase/functions/alert-subscribe) function (double opt-in). Subscriptions live in a private table
@@ -42,6 +52,55 @@ GBFS feed ──► Edge Function `ingest-gbfs` ──► Postgres (stations, st
   Without a verified domain, Resend only delivers to your own address.
 
 **Try it:** https://thomasmorgana.github.io/dock-radar/
+
+## Analytics (optional)
+
+Dock Radar can report to [PostHog](https://posthog.com) (EU cloud) to learn which stations people check, whether the
+predictions match what they see, and which way of phrasing advice helps more. Without a PostHog token, the page and the
+Edge Functions behave exactly as before and make no request to PostHog.
+
+**What's tracked**
+- **Page events:** `station_selected` (and how: picker, nearest, nearby, link, remembered), `profile_viewed` (the prediction shown),
+  `nearby_station_clicked`, `nearest_used`, `share_clicked`, `time_changed`, `language_switched`, `alert_subscribe_submitted`, `alert_link_opened`.
+  All go through [`docs/analytics.js`](docs/analytics.js), the only module that talks to PostHog.
+- **Errors:** failed data loads and alert calls, tagged with where they happened.
+- **Session replay and a survey** ("Does this match what you usually see at this station?"), only for visitors who accept.
+- **An experiment:** the `profile-headline` flag shows half of visitors a one-line "what to do" headline above the verdict.
+- **Server events:** `ingest_completed` / `ingest_failed` from `ingest-gbfs`, `alert_sent` / `alert_send_failed` from `send-alerts`.
+- **Data warehouse:** PostHog syncs `stations` and `station_hourly` (never `station_snapshots`, too big, or `alert_subscriptions`, private)
+  to compare each "now" prediction with what the station actually did.
+
+**What isn't**
+- No email address, confirmation or unsubscribe token, or location is ever sent. Nobody is identified: every visitor stays anonymous.
+- A consent banner asks first. Until the visitor chooses, nothing is sent and PostHog sets no cookies. Decline gives anonymous,
+  cookieless events only, without replay or surveys. Replays mask every input, and the alert email field is excluded on top of that.
+
+**Turn it on**
+1. Create a PostHog project and turn on **Cookieless server hash mode** (Project settings → Web analytics), plus replay and surveys.
+2. Put the project token (`phc_…`, public by design) in [`docs/config.js`](docs/config.js) as `POSTHOG_TOKEN`. Analytics stays off on
+   `localhost` unless you set `POSTHOG_ON_LOCALHOST = true`; local events are tagged `env: local`.
+3. For server events: `npx supabase secrets set POSTHOG_TOKEN=phc_… POSTHOG_HOST=https://eu.i.posthog.com`,
+   then `npx supabase functions deploy ingest-gbfs send-alerts`.
+4. For the warehouse: create a read-only role. RLS hides every row from it unless it gets its own policies:
+
+   ```sql
+   create role posthog_reader with login password '<choose one>';
+   grant usage on schema public to posthog_reader;
+   grant select on public.stations, public.station_hourly to posthog_reader;
+   create policy "PostHog can read stations" on public.stations for select to posthog_reader using (true);
+   create policy "PostHog can read hourly rollups" on public.station_hourly for select to posthog_reader using (true);
+   ```
+
+   Then add a Supabase source in PostHog (Data pipelines → Sources) with the **Session pooler** host and user
+   `posthog_reader.<project-ref>`. Sync `stations` as a full refresh and `station_hourly` incrementally on `rolled_up_at`, with
+   `station_id`, `local_date` and `local_hour` as the primary key. Any other key merges rows. Compare the synced row count with the table's.
+
+**Limits**
+- With a few visitors a week, the experiment won't reach statistical significance.
+- Predictions need history, so "prediction vs reality" only means something after a few weeks, and it only joins past days
+  (the rollup runs at night).
+- Visitors who decline get a cookieless ID that changes daily, so their data is noisier and they can switch experiment variant.
+
 
 ## Install in your own Supabase project
 
@@ -64,7 +123,8 @@ npx supabase link --project-ref <project-ref>
 npx supabase db push
 ```
 
-This creates the tables, `station_profile()`, the `station_latest` view, and a cron job that runs every 5 minutes.
+This creates the tables, `station_profile()`, the `station_latest` view, a cron job that runs every 5 minutes,
+and the nightly `station_hourly` rollup.
 
 ### 2. Ingestion function
 
@@ -106,6 +166,7 @@ select status_code, content, error_msg from net._http_response order by id desc 
 Edit [`docs/config.js`](docs/config.js):
 - `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`: the publishable key is designed to be public, and RLS only allows reading.
 - `TIMEZONE`: your network's time zone, for example `America/New_York`. It's passed to `station_profile`.
+- `POSTHOG_TOKEN`: empty it, or put your own PostHog token (see [Analytics](#analytics-optional)). Otherwise your page reports to this repo's PostHog project.
 
 Also update the attribution in the footer of [`docs/index.html`](docs/index.html) to credit your data provider.
 Then host `docs/` anywhere static. On GitHub Pages: **Settings → Pages → Deploy from a branch → `main` / `/docs`**.
@@ -114,7 +175,8 @@ Then host `docs/` anywhere static. On GitHub Pages: **Settings → Pages → Dep
 
 - **History takes time.** The "usually" numbers need a few weeks of the same weekday to be meaningful.
 - **Storage grows steadily.** Each snapshot row takes about 100 bytes, including its index. A 230-station network adds about
-  7 MB a day, or about 200 MB a month, so the free tier's 500 MB lasts roughly 2–3 months. See "Ideas for v2" for a roll-up plan.
+  7 MB a day, or about 200 MB a month, so the free tier's 500 MB lasts roughly 2–3 months. `station_hourly` keeps an hourly summary
+  of everything, but nothing deletes old snapshots yet: `station_profile` works on 15-minute slots and still reads them (see "Ideas for v2").
 - **Free-tier projects pause when inactive.** Check your project's status now and then, because collection stops while it's paused.
 - **To stop collecting:** `select cron.unschedule('ingest-gbfs');`
 
@@ -133,9 +195,9 @@ On the local stack, the Vault `project_url` is `http://kong:8000`, and the secre
 - **Read the time zone from the feed.** `station_profile` defaults to `Europe/Paris`, so other cities have to pass
   `p_timezone`. GBFS `system_information` publishes the network's `timezone`. Ingestion could store it, and the
   profile would then be correct everywhere without any configuration.
-- **Roll up old history.** Keep raw snapshots for a few weeks, and aggregate older ones into per-day, per-slot
-  summaries: samples, how many were empty or full, and the sum of bikes. `station_profile` would read both, and storage
-  would stop growing with time.
+- **Delete old snapshots.** The hourly rollup (`station_hourly`) exists now. With 15-minute slots in it as well,
+  `station_profile` could read the rollup for older days, raw snapshots could be kept for a few weeks only,
+  and storage would stop growing with time.
 
 ## Data & attribution
 

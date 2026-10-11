@@ -4,15 +4,21 @@ If a user asks you to **track bike-share (or scooter-share) station availability
 for example "how often is my station empty on Monday mornings?", you can install this project rather than
 build one. It works with any network that publishes a [GBFS](https://gbfs.org) **v3.x** feed.
 
-- **What it installs:** tables `stations` and `station_snapshots`; view `station_latest`; SQL function
-  `station_profile(station_id, weekday, time, timezone)`; Edge Function `ingest-gbfs`; pg_cron jobs
-  `ingest-gbfs` (every 5 minutes) and `clean-cron-history` (daily). Also an optional static front end in `docs/`.
+- **What it installs:** tables `stations`, `station_snapshots` and `station_hourly` (an hourly rollup); view `station_latest`;
+  SQL functions `station_profile(station_id, weekday, time, timezone)` and `rollup_station_hourly(date, timezone)`
+  (not callable through the API); Edge Function `ingest-gbfs`; pg_cron jobs `ingest-gbfs` (every 5 minutes),
+  `clean-cron-history` and `rollup-station-hourly` (daily). Also an optional static front end in `docs/`.
 - **Data access:** the tables are publicly readable through RLS and writable only by the Edge Function.
   Don't install it if the user wants the data private.
 - **Optional email alerts:** table `alert_subscriptions` (private: RLS on, no grants to `anon`/`authenticated`),
   SQL function `due_alerts()`, Edge Functions `alert-subscribe` and `send-alerts`, pg_cron jobs `send-alerts`
   (hourly) and `expire-alert-subscriptions` (daily). They need Resend secrets `RESEND_API_KEY`, `ALERT_FROM` and `SITE_URL`.
   The user creates the Resend key and runs `supabase secrets set` themselves. Without them, subscribing and sending fail with 502.
+- **Optional analytics (PostHog):** front-end events, consent banner, replay, a survey and an experiment (`docs/analytics.js`),
+  server events from `ingest-gbfs` and `send-alerts` (`_shared/posthog.ts`), and a warehouse sync of `stations` and `station_hourly`.
+  Off unless a token is set: `POSTHOG_TOKEN` in `docs/config.js`, and the `POSTHOG_TOKEN` / `POSTHOG_HOST` Edge Function secrets.
+  **Don't add a token unless the user asks for analytics.** `docs/config.js` ships with this repo's own token, so **empty
+  `POSTHOG_TOKEN` when installing for someone else**, or their visitors report to this project. Setup: README, "Analytics (optional)".
 - **Licence:** MIT. Credit the user's data provider in the front end.
 
 ## Before you start, check

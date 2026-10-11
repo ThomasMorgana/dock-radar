@@ -3,9 +3,11 @@
 // due_alerts() picks the subscriptions for which it's 19:00 local time.
 //
 // Body (optional, for testing): { "any_hour": true } skips the 19:00 check.
+// Optional: POSTHOG_TOKEN, to report each email to PostHog (see _shared/posthog.ts).
 
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
+import { capture } from "../_shared/posthog.ts";
 import { escapeHtml, sendEmail, siteLink } from "../_shared/resend.ts";
 
 const DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -21,7 +23,12 @@ export default {
     }
 
     const failures: string[] = [];
+    const reports: Promise<void>[] = []; // awaited together before returning
     for (const a of due) {
+      // Never the email address or the token.
+      const report = (event: string) => reports.push(capture(event, `alert:${a.id}`, {
+        station_name: a.station_name, weekday: a.weekday, pct_empty: Number(a.pct_empty), days_observed: a.days_observed,
+      }));
       const time = a.depart_time.slice(0, 5);
       const unsubscribe = siteLink({ unsubscribe: a.token });
       const usually = `empty ${a.pct_empty}% of the time (about ${a.avg_bikes} bikes on average, ` +
@@ -42,11 +49,14 @@ export default {
         });
         await ctx.supabaseAdmin.from("alert_subscriptions")
           .update({ last_sent_on: a.local_date }).eq("id", a.id);
+        report("alert_sent");
       } catch (err) {
         console.error(err);
         failures.push(a.id);
+        report("alert_send_failed");
       }
     }
+    await Promise.all(reports);
 
     return Response.json({ due: due.length, sent: due.length - failures.length, failures },
       { status: failures.length ? 502 : 200 });

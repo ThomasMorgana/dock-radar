@@ -43,18 +43,28 @@ function withPosthog(fn) {
 
 // Until the visitor chooses, posthog-js drops events (cookieless_mode "on_reject"). Without this,
 // a first visit from a shared link would lose its station_selected and profile_viewed.
-// Kept in memory only, and sent with their original time once the visitor accepts or declines.
+// Kept in memory only, and sent once the visitor accepts or declines.
 const held = [];
 
-export function track(event, props) {
+/** Runs send(posthog) now, or once the visitor has chosen. */
+function sendOrHold(send) {
   withPosthog((ph) => {
-    if (ph.get_explicit_consent_status() === "pending") held.push([event, props, new Date()]);
-    else ph.capture(event, props);
+    if (ph.get_explicit_consent_status() === "pending") held.push(send);
+    else send(ph);
   });
 }
 
+export function track(event, props) {
+  const timestamp = new Date(); // the original time, even when held
+  sendOrHold((ph) => ph.capture(event, props, { timestamp }));
+}
+
+/** Reports a handled error. `where` in props says which part of the page failed. */
 export function trackError(err, props) {
-  withPosthog((ph) => ph.captureException(err, props));
+  // supabase-js errors are plain objects ({ message, code, details, hint }). Wrapped in an Error,
+  // they get a readable issue title instead of "[object Object]".
+  const error = err instanceof Error ? err : Object.assign(new Error(err?.message ?? String(err)), { name: "SupabaseError" });
+  sendOrHold((ph) => ph.captureException(error, { ...props, code: err?.code }));
 }
 
 /** Super properties sent with every later event, e.g. the language after a switch. */
@@ -91,6 +101,6 @@ export function setConsent(accepted) {
   withPosthog((ph) => {
     if (accepted) ph.opt_in_capturing();
     else ph.opt_out_capturing();
-    for (const [event, props, timestamp] of held.splice(0)) ph.capture(event, props, { timestamp });
+    for (const send of held.splice(0)) send(ph);
   });
 }

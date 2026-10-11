@@ -4,7 +4,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { NEARBY_RADIUS_M, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, TIMEZONE } from "./config.js";
 import { getLang, num, setLang, t } from "./i18n.js";
-import { consentStatus, initAnalytics, register, setConsent, track } from "./analytics.js";
+import { consentStatus, initAnalytics, register, setConsent, track, trackError } from "./analytics.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -215,6 +215,7 @@ async function render() {
   } catch (err) {
     if (id !== renderId) return;
     console.error(err);
+    trackError(err, { where: "render" });
     $("status").textContent = t("loadError");
   }
 }
@@ -266,6 +267,13 @@ function paint() {
 async function callAlerts(body) {
   const { data, error } = await supabase.functions.invoke("alert-subscribe", { body });
   if (!error) return data;
+  // A 4xx is the function's answer to bad input (shown to the visitor, not a bug).
+  // A 5xx or no reply at all is a failure worth reporting.
+  const status = error.context?.status;
+  if (!(status < 500)) {
+    console.error(error);
+    trackError(error, { where: "alerts", action: body.action, status });
+  }
   const reply = await error.context?.json?.().catch(() => null);
   return reply ?? { ok: false, message: t("genericError") };
 }
@@ -574,6 +582,7 @@ async function init() {
     await loadStations();
   } catch (err) {
     console.error(err);
+    trackError(err, { where: "load_stations" });
     $("status").textContent = t("stationsError");
     return;
   }

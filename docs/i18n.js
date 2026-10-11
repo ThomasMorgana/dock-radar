@@ -41,7 +41,7 @@ const STRINGS = {
     privacyChoices: "Privacy choices",
     consentLabel: "Privacy",
     consentText: "Dock Radar uses PostHog to see how the page is used, including anonymous screen recordings. " +
-      "PostHog stores nothing on your device unless you accept.",
+      "PostHog sets no cookies unless you accept.",
     consentAccept: "Accept",
     consentDecline: "Decline",
 
@@ -131,7 +131,7 @@ const STRINGS = {
     privacyChoices: "Choix de confidentialité",
     consentLabel: "Confidentialité",
     consentText: "Dock Radar utilise PostHog pour voir comment la page est utilisée, y compris des enregistrements " +
-      "d'écran anonymes. PostHog ne stocke rien sur votre appareil sauf si vous acceptez.",
+      "d'écran anonymes. PostHog ne dépose aucun cookie sauf si vous acceptez.",
     consentAccept: "Accepter",
     consentDecline: "Refuser",
 

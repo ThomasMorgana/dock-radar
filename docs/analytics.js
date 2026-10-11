@@ -23,6 +23,8 @@ export function initAnalytics() {
         person_profiles: "identified_only", // we never identify, so every event stays anonymous
         capture_exceptions: true,
         session_recording: { maskAllInputs: true },
+        // Surveys otherwise follow the browser's language, which may not be the one picked on the page.
+        override_display_language: getLang(),
         debug: LOCAL,
         loaded: (loaded) => loaded.register({ app: "dock-radar", env: LOCAL ? "local" : "production", lang: getLang() }),
       });
@@ -67,9 +69,17 @@ export function trackError(err, props) {
   sendOrHold((ph) => ph.captureException(error, { ...props, code: err?.code }));
 }
 
-/** Super properties sent with every later event, e.g. the language after a switch. */
-export function register(props) {
-  withPosthog((ph) => ph.register(props));
+/** Tags this session's later events, e.g. the survey response with the profile it was about. */
+export function registerForSession(props) {
+  withPosthog((ph) => ph.register_for_session(props));
+}
+
+/** After a language switch: tags later events, and shows surveys in that language. */
+export function setAnalyticsLang(lang) {
+  withPosthog((ph) => {
+    ph.register({ lang });
+    ph.set_config({ override_display_language: lang });
+  });
 }
 
 // Flags read while consent is pending. posthog-js drops their $feature_flag_called (the experiment

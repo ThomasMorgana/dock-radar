@@ -4,7 +4,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { NEARBY_RADIUS_M, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, TIMEZONE } from "./config.js";
 import { getLang, num, setLang, t } from "./i18n.js";
-import { consentStatus, flag, initAnalytics, onFlags, register, setConsent, track, trackError } from "./analytics.js";
+import { consentStatus, flag, initAnalytics, onFlags, registerForSession, setAnalyticsLang, setConsent, track, trackError } from "./analytics.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -226,7 +226,16 @@ async function render() {
     shown = { station, weekday, time, current, earlier, nearby };
     paint();
     $("status").textContent = "";
-    track("profile_viewed", profileViewProps(shown)); // here, not in paint(): a language switch isn't a new view
+    const props = profileViewProps(shown);
+    track("profile_viewed", props); // here, not in paint(): a language switch isn't a new view
+    // The survey asks "does this match what you see?": its response must say which profile "this" was.
+    registerForSession({
+      viewing_station_id: props.station_id,
+      viewing_station_name: props.station_name,
+      viewing_weekday: props.weekday,
+      viewing_time: props.time,
+      viewing_pct_empty: props.pct_empty,
+    });
   } catch (err) {
     if (id !== renderId) return;
     console.error(err);
@@ -555,7 +564,7 @@ function switchLanguage() {
   translatePage();
   if (!$("station-list").hidden) openList($("station").value);
   paint();
-  register({ lang: getLang() });
+  setAnalyticsLang(getLang());
   track("language_switched", { to: getLang() });
 }
 

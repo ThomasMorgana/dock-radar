@@ -155,7 +155,7 @@ button.link {
   padding: 0.75rem 1rem; font-size: 0.875rem;
   background: var(--card); border-top: 1px solid var(--border); box-shadow: 0 -4px 16px rgb(0 0 0 / 0.1);
 }
-.consent[hidden] { display: none; }
+.consent[hidden] { display: none; } /* the display: flex above would otherwise override the hidden attribute */
 .consent p { margin: 0; max-width: 34rem; }
 .consent-buttons { display: flex; gap: 0.5rem; }
 .consent button { padding: 0.4rem 0.9rem; }

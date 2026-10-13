@@ -7,7 +7,7 @@ import { getLang } from "./i18n.js";
 
 const ENABLED = Boolean(POSTHOG_TOKEN) && (!LOCAL || POSTHOG_ON_LOCALHOST);
 
-let posthog = null;              // set once posthog-js is loaded and initialised
+let posthog = null;                // for the synchronous reads (flag, consentStatus) once loaded
 let ready = Promise.resolve(null); // resolves to posthog, or null when off or the load failed
 
 /** Loads posthog-js and starts it. Resolves to true when analytics is on. */
@@ -18,8 +18,8 @@ export function initAnalytics() {
     .then(({ default: ph }) => {
       ph.init(POSTHOG_TOKEN, {
         api_host: POSTHOG_HOST,
-        defaults: "2026-08-30",             // the latest in PostHog's JS config reference (2026-10)
-        cookieless_mode: "on_reject",       // nothing stored, nothing captured until the visitor chooses
+        defaults: "2026-08-30",             // pinned so PostHog's defaults don't change under us; bump deliberately
+        cookieless_mode: "on_reject",       // no cookies, nothing captured until the visitor chooses
         person_profiles: "identified_only", // we never identify, so every event stays anonymous
         capture_exceptions: true,
         session_recording: { maskAllInputs: true },
@@ -98,9 +98,9 @@ export function flag(key) {
   }
 }
 
-/** Runs callback whenever flags load. Flags can arrive after the first paint. */
+/** Runs callback whenever flags load. They can arrive after the first paint, and reload on the consent choice. */
 export function onFlags(callback) {
-  withPosthog((ph) => ph.onFeatureFlags(() => callback()));
+  withPosthog((ph) => ph.onFeatureFlags(callback));
 }
 
 /** "pending", "granted" or "denied". null when analytics is off. */

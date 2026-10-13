@@ -101,7 +101,6 @@ Edge Functions behave exactly as before and make no request to PostHog.
   (the rollup runs at night).
 - Visitors who decline get a cookieless ID that changes daily, so their data is noisier and they can switch experiment variant.
 
-
 ## Install in your own Supabase project
 
 About 15 minutes, for any city with a GBFS v3 feed. Installing with an AI agent? Point it to [AGENTS.md](AGENTS.md).

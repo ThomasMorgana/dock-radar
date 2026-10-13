@@ -59,11 +59,25 @@ function nowInNetwork() {
   return { weekday, time: `${parts.hour}:${parts.minute}` };
 }
 
+const pad = (n) => String(n).padStart(2, "0");
+
+/** HH:MM rounded down to the 5-minute step of the time picker. */
+function toStep(time) {
+  const [h, m] = time.split(":").map(Number);
+  return `${pad(h)}:${pad(m - (m % 5))}`;
+}
+
+/** True when the page shows the current time step, so the prediction can be checked against reality later. */
+function isNow(weekday, time) {
+  const now = nowInNetwork();
+  return now.weekday === weekday && time === toStep(now.time);
+}
+
 function minusMinutes(time, minutes) {
   const [h, m] = time.split(":").map(Number);
   const total = h * 60 + m - minutes;
   if (total < 0) return null; // don't cross into the previous day
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
 }
 
 function distanceM(a, b) {
@@ -85,7 +99,7 @@ function escapeHtml(text) {
 }
 
 function verdict(p) {
-  if (!p || p.samples === 0) return null;
+  if (p.samples === 0) return null;
   const empty = Number(p.pct_empty);
   const level = empty < 10 ? "good" : empty < 30 ? "ok" : "bad";
   return { level, text: t(level) };
@@ -105,9 +119,8 @@ function betterBet(nearby, current) {
   return best && current.samples > 0 && Number(best.profile.pct_empty) < Number(current.pct_empty) ? best : null;
 }
 
-/** The one thing to do, for the "advice" headline. null without history. */
+/** The one thing to do, in order of how much it helps. Only called when there's history. */
 function advice(current, earlier, nearby) {
-  if (current.samples === 0) return null;
   if (earlierIsBetter(current, earlier)) return t("adviceEarlier", hhmm(earlier.slot_start));
   const best = betterBet(nearby, current);
   if (best) return t("adviceNearby", escapeHtml(best.station.name), num(best.profile.pct_empty));
@@ -244,15 +257,7 @@ async function render() {
   }
 }
 
-/** True when the page shows the current 5-minute step in the network's time zone. */
-function isNow(weekday, time) {
-  const now = nowInNetwork();
-  const [h, m] = now.time.split(":").map(Number);
-  return now.weekday === weekday && time === `${pad(h)}:${pad(m - (m % 5))}`;
-}
-
 function profileViewProps({ station, weekday, time, current, earlier, nearby }) {
-  const hasHistory = current.samples > 0;
   return {
     station_id: station.id,
     station_name: station.name,
@@ -262,7 +267,7 @@ function profileViewProps({ station, weekday, time, current, earlier, nearby }) 
     is_now: isNow(weekday, time),
     samples: current.samples,
     days_observed: current.days_observed,
-    pct_empty: hasHistory ? Number(current.pct_empty) : null,
+    pct_empty: current.samples > 0 ? Number(current.pct_empty) : null,
     verdict_level: verdict(current)?.level ?? "none",
     has_earlier_tip: earlierIsBetter(current, earlier),
     nearby_count: nearby.length,
@@ -313,18 +318,11 @@ async function subscribe(e) {
   const button = $("alert-form").querySelector("button");
   button.disabled = true;
   $("alert-status").textContent = t("sending");
-  const reply = await callAlerts({
-    action: "subscribe",
-    email: $("alert-email").value,
-    station_id: station.id,
-    weekday: Number($("weekday").value),
-    time: getTime(),
-    timezone: TIMEZONE,
-  });
+  const trip = { station_id: station.id, weekday: Number($("weekday").value), time: getTime() };
+  const reply = await callAlerts({ action: "subscribe", email: $("alert-email").value, ...trip, timezone: TIMEZONE });
   $("alert-status").textContent = reply.message;
   button.disabled = false;
-  // Never the email address.
-  track("alert_subscribe_submitted", { station_id: station.id, weekday: Number($("weekday").value), time: getTime(), ok: Boolean(reply.ok) });
+  track("alert_subscribe_submitted", { ...trip, ok: Boolean(reply.ok) }); // the trip only, never the email
 }
 
 /** Confirm and unsubscribe links in emails land here: ?confirm=<token> or ?unsubscribe=<token>. */
@@ -474,9 +472,7 @@ function onNearbyClick(e) {
   selectStation(station, "nearby");
 }
 
-// The departure time is two selects: hours, and minutes in 5-minute steps.
-const pad = (n) => String(n).padStart(2, "0");
-
+// The departure time is two selects (see index.html for why): hours, and minutes in 5-minute steps.
 function fillTimeOptions() {
   const options = (values) => values.map((v) => `<option value="${pad(v)}">${pad(v)}</option>`).join("");
   $("hour").innerHTML = options([...Array(24).keys()]);
@@ -485,11 +481,8 @@ function fillTimeOptions() {
 
 const getTime = () => `${$("hour").value}:${$("minute").value}`;
 
-/** Set HH:MM, rounding the minutes down to the 5-minute step. */
 function setTime(time) {
-  const [h, m] = time.split(":").map(Number);
-  $("hour").value = pad(h);
-  $("minute").value = pad(m - (m % 5));
+  [$("hour").value, $("minute").value] = toStep(time).split(":");
 }
 
 function setNow() {

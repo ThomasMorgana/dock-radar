@@ -15,7 +15,7 @@ export const NEARBY_RADIUS_M = 600;
 
 // PostHog (optional). Leave POSTHOG_TOKEN empty to turn analytics off entirely.
 // The project token is public by design, like the Supabase publishable key.
-export const POSTHOG_TOKEN = "phc_vPfCyiymkG9enNQDeCRJdu39rxJLKfUkdgnyDsehy6TM"; // phc_...
+export const POSTHOG_TOKEN = "phc_vPfCyiymkG9enNQDeCRJdu39rxJLKfUkdgnyDsehy6TM";
 export const POSTHOG_HOST = "https://eu.i.posthog.com";
 // Off by default so local development doesn't pollute production data. Turn on while testing.
 export const POSTHOG_ON_LOCALHOST = false;

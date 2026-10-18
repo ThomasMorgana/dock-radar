@@ -51,6 +51,23 @@ MCP server `upsun-server` 0.2.0, read-only (`enable-write: false`): 19 tools, al
 | 4. Resources used, and cost | `list-environment` / `get-activity` show `profile_size: "0.1"`, 1 instance, disk 0. `info-project` shows the subscription (storage 1024, 1 user). No cost or price. | `upsun resources`: 0.1 CPU (shared), 64 MB, 1 instance. `app:config-get` also lists the `default` size (0.5 CPU, 224 MB). `subscription:info`: `trial/upsun-flexible`, `green: true`. No cost or price command found. | not checked |
 | 5. Runtime version, still supported? | Not found. `log-activity` returns `Not implemented, prefere use get() (contains log)`. In `get-activity`, `log` reads `Log for this activity is available in the streaming logs endpoint. Update your API client.` `logs-environment` returns `Not implemented yet`. | `app:config-get`: `type: 'nodejs:22:542'`. Support status isn't in the CLI; the Node.js docs page lists 22 as active (22, 24, 26 active; 20 and older "Sunset"). | not checked |
 
+**Failure test.** Branch `broken-test` (from `feature/upsun`, `type: "nodejs:99"`), pushed to GitHub at 23:36:26, activated
+with the CLI at 23:36:40. The GitHub push activity (`2ynhpz3eawgys`) reports `success`, since inactive environments aren't built;
+the activation (`mbm3ocqh7mgck`) fails in 0.06 s.
+
+Question asked through MCP only: "Why did the last deployment on broken-test fail, and how do I fix it?"
+
+- **Did the error reach the agent?** Only that it failed. `info-environment broken-test`: `lastDeploymentSuccessful: false`,
+  no reason field. `list-activity` (whole project, 93k characters, saved to a file and filtered): `result: failure`,
+  `failure_reason: error`. `get-activity mbm3ocqh7mgck`: same, with `log: "Log for this activity is available in the streaming
+  logs endpoint.\nUpdate your API client."`. `log-activity` isn't implemented (see question 5).
+- **Did it name the cause and the fix?** No. From MCP alone, the agent can say the activation failed in under a second
+  (so before the build), but not why. The cause came from reading the diff in git.
+- **CLI:** the activation output printed the cause right away:
+  `E: Error parsing configuration files: - applications.config.yaml:dockradar.type: "nodejs:99" is not a valid service type.`
+  then `E: Error: Invalid configuration files, aborting build`. It doesn't list the valid versions.
+- **Console:** not checked.
+
 ## Dispatch (U4)
 
 ## Thomas's takeaways

@@ -68,6 +68,15 @@ Question asked through MCP only: "Why did the last deployment on broken-test fai
   then `E: Error: Invalid configuration files, aborting build`. It doesn't list the valid versions.
 - **Console:** not checked.
 
+**Docs as agent context (`llms.txt`).** `https://developer.upsun.com/llms.txt` lists six sub-indexes (`/_llms/cloud.txt`,
+`/_llms/cloud/docs.txt`, `/_llms/cloud/api.txt`, `/_llms/other.txt`, …) and has no topic entries itself, so each question
+takes at least two fetches.
+
+| Question | Path through llms.txt | Result |
+|---|---|---|
+| How do I set a maintenance window? | `llms.txt` → `cloud/docs.txt`: no entry for "maintenance". `cloud/api.txt`: two API reference pages, "Post projects environments maintenance redeploy" and "Post projects maintenance redeploy". | No docs page about a maintenance window found from the index. The API exposes a maintenance redeploy (also seen as `#maintenance-redeploy` links and `last_maintenance_at` in the MCP output), but nothing in the index says how to schedule it. |
+| How do I run a one-off task container? | `llms.txt` → `cloud/docs.txt` → "Configure tasks to run on-demand workloads and AI agents" (`/docs/configure-apps/tasks.md`). | Right page, two fetches. A top-level `tasks:` key with `type` and `run.command`, run with `upsun task:run <name>` (without the name it prompts, which fails non-interactively). "Runtime operations" (one-off commands on an app) is listed next to it. The CLI has `task:run`; the read-only MCP server has no task tool. |
+
 ## Dispatch (U4)
 
 ## Thomas's takeaways

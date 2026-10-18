@@ -26,14 +26,30 @@ expected, what happened. Machine: Windows 10, PowerShell 5.1.
 | U2 | `upsun environment:branch preview-test feature/upsun` | A new environment | `Operation not available: The environment feature/upsun can't be branched. The project's branches are managed externally through its github integration.` The message names the integration and the command to inspect it. | 1 min | 1 |
 | U2 | Create `preview-test` as a git branch, push to GitHub, `environment:activate` | Preview URL | Environment created inactive, then activated: build and deploy succeeded. `environment:info parent` says `main`, not `feature/upsun`: with the integration, the parent isn't the git branch it came from. | 0 | – |
 | U2 | Compare URLs | Two versions | The preview shows the "Preview"/"Aperçu" badge; `feature/upsun` doesn't. Each environment has its own hostname, so the PostHog consent choice isn't shared between them (banner shown again). | 0 | – |
+| U3 | Add the MCP server (spec's H4: `export …` and `claude mcp add …`) | Works as written | On Windows, `export` is bash-only and `claude` wasn't on PATH. Used `$env:UPSUN_API_TOKEN = …` and `npx @anthropic-ai/claude-code mcp add --scope user …`. Client-side, not Upsun. | | 1 |
+| U3 | Restart the Claude desktop app, resume the session | `upsun` MCP tools available | The server is in `~/.claude.json` (user scope, both headers set), but the resumed session doesn't list it among its MCP servers: no `upsun` tools. Client-side, not Upsun. | | 2 |
+| U3 | New session forked from the first one | `upsun` MCP tools available | The server is listed now, with status `needs_auth` and no tools. The `upsun-api-token` header in `~/.claude.json` is empty (length 0): `$env:UPSUN_API_TOKEN` was empty in the window that ran `mcp add`, so the empty header was saved without a warning. With no valid token, the client falls back to asking for an OAuth sign-in. | | 2 |
+| U3 | Re-add the server with the token set in the same window | Tools load | The header is saved now. A direct `initialize` request to `https://mcp.upsun.com/mcp` with that header returns 200 (`upsun-server` 0.2.0, tools and prompts capabilities). The running session keeps its earlier `needs_auth` state until the server is reconnected. | | 1 |
 
 ## Timings
 
 - Signup start → project: 22:50 → 22:52 (2 min)
 - Push → live URL: 23:06:10 (`git push` to GitHub) → 23:06:14 (environment created, inactive) → 23:07:04 (manual activation) → 23:09:13 (live). About 3 min, of which 2 min 7 s is the activation's build and deploy.
 - Branch → preview URL: 23:12:41 (`environment:branch` refused) → 23:12:59 (`git push` of `preview-test`) → 23:13:10 (activation) → 23:14:52 (live). About 2 min.
+- MCP added → first useful answer: the first registration (time not recorded) saved an empty token header (client-side snag, see table). Tools loaded after the fix and a reconnect at 23:34:53, first useful answer (project and environments) at ~23:35.
 
 ## Agent's view vs human's view (U3)
+
+MCP server `upsun-server` 0.2.0, read-only (`enable-write: false`): 19 tools, all `list-*`, `get-*`, `info-*`, `log-activity`,
+`logs-environment` and `urls-environment`. CLI: Upsun CLI 5.13.0.
+
+| Question | MCP server returned | CLI returned | Console showed |
+|---|---|---|---|
+| 1. List my projects and environments | Needs the organization ID first (`list-organization`, then `list-project`, then `list-environment`). `list-environment` returns the full API objects (HAL links, sizing, `deployment_state`, `merge_info`) for the 3 environments: about 20k characters. | `upsun projects` and `upsun environments`: two short tables, with the parent/child tree (`main` > `feature/upsun`, `preview-test`). | not checked |
+| 2. Last deployment on `preview-test`, did it succeed? | `list-activity` has no environment filter: the whole project's 11 activities came back as 73k characters, too big to return inline, so the client saved them to a file and the agent filtered it. Answer: `bostxts2pefby`, `environment.activate`, 21:13:11 UTC, `success`. | `upsun activities -e preview-test --limit 1`: same activity, one row. | not checked |
+| 3. App configuration of the main environment | No tool returns app configuration. `info-environment main` shows `webapps: {}` and `lastDeploymentSuccessful: false`. | `app:config-get -e main` returns `{  }` (main has no app: its build failed, no `.upsun/` on GitHub `main`). On `feature/upsun` it returns the full resolved config, including defaults that aren't in the file (`passthru: true`, `container_profile: HIGH_CPU`, `type: 'nodejs:22:542'`). | not checked |
+| 4. Resources used, and cost | `list-environment` / `get-activity` show `profile_size: "0.1"`, 1 instance, disk 0. `info-project` shows the subscription (storage 1024, 1 user). No cost or price. | `upsun resources`: 0.1 CPU (shared), 64 MB, 1 instance. `app:config-get` also lists the `default` size (0.5 CPU, 224 MB). `subscription:info`: `trial/upsun-flexible`, `green: true`. No cost or price command found. | not checked |
+| 5. Runtime version, still supported? | Not found. `log-activity` returns `Not implemented, prefere use get() (contains log)`. In `get-activity`, `log` reads `Log for this activity is available in the streaming logs endpoint. Update your API client.` `logs-environment` returns `Not implemented yet`. | `app:config-get`: `type: 'nodejs:22:542'`. Support status isn't in the CLI; the Node.js docs page lists 22 as active (22, 24, 26 active; 20 and older "Sunset"). | not checked |
 
 ## Dispatch (U4)
 

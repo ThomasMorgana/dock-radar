@@ -74,6 +74,19 @@ Question asked through MCP only: "Why did the last deployment on broken-test fai
 `delete-environment`, `merge-environment`, `pause-environment`, `redeploy-environment`, `resume-environment`,
 `create-organization`, `delete-organization`, `create-project`, `delete-project`, `add-sshkey`, `delete-sshkey`. The header is
 all-or-nothing: no per-tool or per-resource scope. After two reconnects, the running session still listed 19 tools: the client keeps the headers it loaded when the session started, so write mode needs a new session (client-side).
+In a new session, the 40 tools loaded. The one write tried was `delete-environment` on `broken-test` (project 6rvxfvuni676e).
+The tool's description is "Delete a environment of upsun project". Its parameters are `project_id` (13 characters) and
+`environment_name`. It says nothing about irreversibility or the git branch, and asks for no confirmation. Before the call,
+`info-environment broken-test` showed `status: active`, `hasRemote: true`, `lastDeploymentSuccessful: false`.
+- First attempt: blocked client-side by Claude Code's auto-mode permission classifier ("Irreversible Deletion (general)").
+  The request never reached Upsun. Thomas approved it in chat, and the call was retried once.
+- Second attempt: Upsun returned `HTTP 403 Forbidden`, `"Access was denied to this resource."`, detail
+  `"Unauthorized: document_delete_view failed permission check"`. The MCP server showed no confirmation step of its own.
+- After: `list-environment` still shows `broken-test` with `status: active`. Its `_links` include `#deactivate` but no
+  `#delete`. The MCP tool list has no `deactivate-environment` tool. The project is GitHub-integrated
+  (`has_remote: true` on every environment).
+- Then the git branch was deleted (`git push origin --delete broken-test`). Seconds later, `info-environment broken-test`
+  returned `HTTP 404 Not Found`: the environment was removed through the GitHub integration, not through MCP.
 
 **Docs as agent context (`llms.txt`).** `https://developer.upsun.com/llms.txt` lists six sub-indexes (`/_llms/cloud.txt`,
 `/_llms/cloud/docs.txt`, `/_llms/cloud/api.txt`, `/_llms/other.txt`, …) and has no topic entries itself, so each question

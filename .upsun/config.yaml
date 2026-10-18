@@ -1,0 +1,27 @@
+# Optional side deployment of the static front end on Upsun. GitHub Pages stays production.
+applications:
+  dockradar:
+    # Any runtime works for a static site; nodejs:22 is the oldest version still active.
+    type: "nodejs:22"
+    source:
+      root: "/"
+    build:
+      # Nothing to install or build: docs/ is served as-is.
+      flavor: none
+    web:
+      locations:
+        "/":
+          root: "docs"
+          index:
+            - "index.html"
+          scripts: false
+          allow: true
+          expires: 1h
+      commands:
+        # Static site: no process needed.
+        start: sleep infinity
+
+routes:
+  "https://{default}/":
+    type: upstream
+    upstream: "dockradar:http"

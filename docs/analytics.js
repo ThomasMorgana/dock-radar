@@ -6,6 +6,8 @@ import { LOCAL, POSTHOG_HOST, POSTHOG_ON_LOCALHOST, POSTHOG_TOKEN } from "./conf
 import { getLang } from "./i18n.js";
 
 const ENABLED = Boolean(POSTHOG_TOKEN) && (!LOCAL || POSTHOG_ON_LOCALHOST);
+// Only GitHub Pages is production: other hosts (Upsun environments, previews) must not count in production data.
+const ENV = LOCAL ? "local" : location.hostname === "thomasmorgana.github.io" ? "production" : "staging";
 
 let posthog = null;                // for the synchronous reads (flag, consentStatus) once loaded
 let ready = Promise.resolve(null); // resolves to posthog, or null when off or the load failed
@@ -26,7 +28,7 @@ export function initAnalytics() {
         // Surveys otherwise follow the browser's language, which may not be the one picked on the page.
         override_display_language: getLang(),
         debug: LOCAL,
-        loaded: (loaded) => loaded.register({ app: "dock-radar", env: LOCAL ? "local" : "production", lang: getLang() }),
+        loaded: (loaded) => loaded.register({ app: "dock-radar", env: ENV, lang: getLang() }),
       });
       posthog = ph;
       return ph;

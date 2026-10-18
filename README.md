@@ -79,6 +79,8 @@ Edge Functions behave exactly as before and make no request to PostHog.
 1. Create a PostHog project and turn on **Cookieless server hash mode** (Project settings → Web analytics), plus replay and surveys.
 2. Put the project token (`phc_…`, public by design) in [`docs/config.js`](docs/config.js) as `POSTHOG_TOKEN`. Analytics stays off on
    `localhost` unless you set `POSTHOG_ON_LOCALHOST = true`; local events are tagged `env: local`.
+   Only `thomasmorgana.github.io` is tagged `env: production`, any other host `env: staging`: change the hostname in
+   [`docs/analytics.js`](docs/analytics.js) to yours.
 3. For server events: `npx supabase secrets set POSTHOG_TOKEN=phc_… POSTHOG_HOST=https://eu.i.posthog.com`,
    then `npx supabase functions deploy ingest-gbfs send-alerts`.
 4. For the warehouse: create a read-only role. RLS hides every row from it unless it gets its own policies:

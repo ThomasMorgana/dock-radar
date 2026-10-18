@@ -23,11 +23,15 @@ expected, what happened. Machine: Windows 10, PowerShell 5.1.
 | U1 | Geolocation prompt over HTTPS | Prompt appears | Secure context confirmed (`isSecureContext: true`). The agent's browser pane blocks geolocation, so the prompt itself wasn't tested here. | | |
 | U1 | PostHog `env` | `staging` on Upsun | The deployed `analytics.js` tags any host other than `thomasmorgana.github.io` as `staging`, and events reach `eu.i.posthog.com`. Not yet checked in PostHog itself. | | |
 | U1 | `upsun list` | – | `task:list` / `task:run` exist (task containers). Not set up (out of scope). | 0 | – |
+| U2 | `upsun environment:branch preview-test feature/upsun` | A new environment | `Operation not available: The environment feature/upsun can't be branched. The project's branches are managed externally through its github integration.` The message names the integration and the command to inspect it. | 1 min | 1 |
+| U2 | Create `preview-test` as a git branch, push to GitHub, `environment:activate` | Preview URL | Environment created inactive, then activated: build and deploy succeeded. `environment:info parent` says `main`, not `feature/upsun`: with the integration, the parent isn't the git branch it came from. | 0 | – |
+| U2 | Compare URLs | Two versions | The preview shows the "Preview"/"Aperçu" badge; `feature/upsun` doesn't. Each environment has its own hostname, so the PostHog consent choice isn't shared between them (banner shown again). | 0 | – |
 
 ## Timings
 
 - Signup start → project: 22:50 → 22:52 (2 min)
 - Push → live URL: 23:06:10 (`git push` to GitHub) → 23:06:14 (environment created, inactive) → 23:07:04 (manual activation) → 23:09:13 (live). About 3 min, of which 2 min 7 s is the activation's build and deploy.
+- Branch → preview URL: 23:12:41 (`environment:branch` refused) → 23:12:59 (`git push` of `preview-test`) → 23:13:10 (activation) → 23:14:52 (live). About 2 min.
 
 ## Agent's view vs human's view (U3)
 

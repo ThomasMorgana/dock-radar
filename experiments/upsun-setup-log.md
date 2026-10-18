@@ -29,6 +29,7 @@ expected, what happened. Machine: Windows 10, PowerShell 5.1.
 | U3 | Add the MCP server (spec's H4: `export …` and `claude mcp add …`) | Works as written | On Windows, `export` is bash-only and `claude` wasn't on PATH. Used `$env:UPSUN_API_TOKEN = …` and `npx @anthropic-ai/claude-code mcp add --scope user …`. Client-side, not Upsun. | | 1 |
 | U3 | Restart the Claude desktop app, resume the session | `upsun` MCP tools available | The server is in `~/.claude.json` (user scope, both headers set), but the resumed session doesn't list it among its MCP servers: no `upsun` tools. Client-side, not Upsun. | | 2 |
 | U3 | New session forked from the first one | `upsun` MCP tools available | The server is listed now, with status `needs_auth` and no tools. The `upsun-api-token` header in `~/.claude.json` is empty (length 0): `$env:UPSUN_API_TOKEN` was empty in the window that ran `mcp add`, so the empty header was saved without a warning. With no valid token, the client falls back to asking for an OAuth sign-in. | | 2 |
+| U3 | `git status` after the CLI commands | Clean tree | Untracked `.upsun/local/` (CLI cache: `project.yaml`, `README.txt`). The CLI wrote `.upsun\local` (backslash) into its `.gitignore`, which git doesn't match on Windows. | 0 | 1 |
 | U3 | Re-add the server with the token set in the same window | Tools load | The header is saved now. A direct `initialize` request to `https://mcp.upsun.com/mcp` with that header returns 200 (`upsun-server` 0.2.0, tools and prompts capabilities). The running session keeps its earlier `needs_auth` state until the server is reconnected. | | 1 |
 
 ## Timings
@@ -98,5 +99,7 @@ takes at least two fetches.
 | How do I run a one-off task container? | `llms.txt` → `cloud/docs.txt` → "Configure tasks to run on-demand workloads and AI agents" (`/docs/configure-apps/tasks.md`). | Right page, two fetches. A top-level `tasks:` key with `type` and `run.command`, run with `upsun task:run <name>` (without the name it prompts, which fails non-interactively). "Runtime operations" (one-off commands on an app) is listed next to it. The CLI has `task:run`; the read-only MCP server has no task tool. |
 
 ## Dispatch (U4)
+
+- **Setup:** sign in at dispatch.upsun.com with GitHub and connect `dock-radar`: about 1 min.
 
 ## Thomas's takeaways

@@ -68,6 +68,13 @@ Question asked through MCP only: "Why did the last deployment on broken-test fai
   then `E: Error: Invalid configuration files, aborting build`. It doesn't list the valid versions.
 - **Console:** not checked.
 
+**Write test.** The server was re-added with `enable-write: true` (23:40). A direct `tools/list` with that header returns
+40 tools instead of 19: the read-only ones plus `cancel-activity`, `create-backup`, `delete-backup`, `restore-backup`,
+`add-certificate`, `delete-certificate`, `add-domain`, `delete-domain`, `update-domain`, `activate-environment`,
+`delete-environment`, `merge-environment`, `pause-environment`, `redeploy-environment`, `resume-environment`,
+`create-organization`, `delete-organization`, `create-project`, `delete-project`, `add-sshkey`, `delete-sshkey`. The header is
+all-or-nothing: no per-tool or per-resource scope. After two reconnects, the running session still listed 19 tools: the client keeps the headers it loaded when the session started, so write mode needs a new session (client-side).
+
 **Docs as agent context (`llms.txt`).** `https://developer.upsun.com/llms.txt` lists six sub-indexes (`/_llms/cloud.txt`,
 `/_llms/cloud/docs.txt`, `/_llms/cloud/api.txt`, `/_llms/other.txt`, …) and has no topic entries itself, so each question
 takes at least two fetches.

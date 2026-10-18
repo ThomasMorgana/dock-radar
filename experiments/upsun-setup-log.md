@@ -88,6 +88,7 @@ The tool's description is "Delete a environment of upsun project". Its parameter
   (`has_remote: true` on every environment).
 - Then the git branch was deleted (`git push origin --delete broken-test`). Seconds later, `info-environment broken-test`
   returned `HTTP 404 Not Found`: the environment was removed through the GitHub integration, not through MCP.
+- Afterwards, the MCP server was left at `enable-write: true` by choice (the spec asks to switch it back to read-only).
 
 **Docs as agent context (`llms.txt`).** `https://developer.upsun.com/llms.txt` lists six sub-indexes (`/_llms/cloud.txt`,
 `/_llms/cloud/docs.txt`, `/_llms/cloud/api.txt`, `/_llms/other.txt`, …) and has no topic entries itself, so each question
@@ -101,5 +102,25 @@ takes at least two fetches.
 ## Dispatch (U4)
 
 - **Setup:** sign in at dispatch.upsun.com with GitHub and connect `dock-radar`: about 1 min.
+- **Model key:** starting the code review on PR 1 asks for a model API key. The docs ("AI models") say workflows that use a
+  model need an organization-level key, from Anthropic or OpenAI. The docs don't mention included or free model usage.
+  The key-setup step isn't in the spec's H6 and wasn't expected: this account has no Anthropic or OpenAI API key.
+  An Anthropic API key is billed separately from a Claude subscription (prepaid credits).
+- **Outcome:** both workflows (code review, issue-to-PR) skipped at the model-key step, by choice, to avoid buying API
+  credits. No run, so no audit trail, cost view or agent-minutes to report. PR
+  [#1](https://github.com/ThomasMorgana/dock-radar/pull/1) (`feature/upsun` → `main`) was opened for the review, not merged.
+- **Claude Code's review of PR 1** (written before Dispatch was tried, kept out of the PR so it couldn't see it; there's no Dispatch
+  review to compare it with):
+  1. Merging deploys `main` on Upsun: the GitHub integration builds `main` as a production-type environment (default
+     resources, 0.5 CPU / 224 MB) as soon as `.upsun/` lands there. The PR description says so.
+  2. The production hostname is hard-coded in `docs/analytics.js`. Anyone installing the project gets `env: staging` on every
+     event unless they edit that file. `docs/config.js` is the file people are told to change, and AGENTS.md doesn't mention it.
+  3. Staging events go to the same PostHog project and token. Existing insights, the survey and the experiment exclude them
+     only if they filter on `env = production`.
+  4. `expires: 1h` applies to every file, including `index.html`, and the JS modules have no hashed names. After a deploy,
+     a browser can mix cached and new files for up to an hour.
+  5. `.upsun/local/` isn't ignored (see the U3 row): add it to the root `.gitignore`.
+  6. `nodejs:22` is the oldest active version. Node 22 reaches end of life in April 2027, so it will move to "Sunset".
+  7. The setup log goes public with the project ID and environment URLs. Not secrets; decided in U5.
 
 ## Thomas's takeaways
